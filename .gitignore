@@ -9,6 +9,11 @@
 *secret*
 *password*
 
+# Encrypted API Keys
+.encrypted_keys
+.key_salt
+*.gpg
+
 # Python
 __pycache__/
 *.py[cod]

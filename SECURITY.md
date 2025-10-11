@@ -29,7 +29,7 @@
    export GOOGLE_API_KEY="your-google-api-key-here"
    
    # ❌ Bad
-   export GOOGLE_API_KEY="AIzaSyDvfc7dDWbnSajHDbvYOL9DIWWyilLcgqE"
+   export GOOGLE_API_KEY="your-google-api-key-here"
    ```
 
 ## 🛡️ **Security Checklist**

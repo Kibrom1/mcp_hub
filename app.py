@@ -394,9 +394,9 @@ This is a markdown file created with MCP Hub.
                         # Get available tools and resources for the system prompt
                         tools_info = get_tools_info()
                         resources_info = get_resources_info()
-                    
-                    # Create enhanced system prompt with tool access
-                    system_prompt = f"""You are a helpful AI assistant with access to MCP (Model Context Protocol) tools and resources.
+                        
+                        # Create enhanced system prompt with tool access
+                        system_prompt = f"""You are a helpful AI assistant with access to MCP (Model Context Protocol) tools and resources.
 
 Available Tools:
 {tools_info}
@@ -418,78 +418,78 @@ TOOL_EXECUTE: {{"tool": "tool1", "server": "server1", "arguments": {{}}}}
 TOOL_EXECUTE: {{"tool": "tool2", "server": "server2", "arguments": {{}}}}
 
 Always provide helpful, accurate responses based on the tool results."""
-                    
-                    # Create messages for the LLM
-                    messages = [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_input}
-                    ]
-                    
-                    # Generate response using selected provider
-                    response = asyncio.run(llm_manager.generate_response(
-                        messages, 
-                        provider=selected_provider,
-                        max_tokens=2000,
-                        temperature=0.3
-                    ))
-                    
-                    # Check if response contains tool execution requests
-                    response_content = response.content
-                    tool_results = []
-                    
-                    if "TOOL_EXECUTE:" in response_content:
-                        # Extract and execute tools
-                        tool_results = execute_tools_from_response(response_content)
                         
-                        # Generate final response with tool results
-                        final_messages = [
+                        # Create messages for the LLM
+                        messages = [
                             {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_input},
-                            {"role": "assistant", "content": response_content},
-                            {"role": "user", "content": f"Tool execution results: {json.dumps(tool_results, indent=2)}"}
+                            {"role": "user", "content": user_input}
                         ]
                         
-                        final_response = asyncio.run(llm_manager.generate_response(
-                            final_messages,
+                        # Generate response using selected provider
+                        response = asyncio.run(llm_manager.generate_response(
+                            messages, 
                             provider=selected_provider,
                             max_tokens=2000,
                             temperature=0.3
                         ))
-                        response_content = final_response.content
-                    
-                    duration = time.time() - start_time
-                    
-                    # Format response
-                    output = f"""
+                        
+                        # Check if response contains tool execution requests
+                        response_content = response.content
+                        tool_results = []
+                        
+                        if "TOOL_EXECUTE:" in response_content:
+                            # Extract and execute tools
+                            tool_results = execute_tools_from_response(response_content)
+                            
+                            # Generate final response with tool results
+                            final_messages = [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_input},
+                                {"role": "assistant", "content": response_content},
+                                {"role": "user", "content": f"Tool execution results: {json.dumps(tool_results, indent=2)}"}
+                            ]
+                            
+                            final_response = asyncio.run(llm_manager.generate_response(
+                                final_messages,
+                                provider=selected_provider,
+                            max_tokens=2000,
+                            temperature=0.3
+                        ))
+                            response_content = final_response.content
+                        
+                        duration = time.time() - start_time
+                        
+                        # Format response
+                        output = f"""
 **AI Response:**
 {response_content}
 """
-                    
-                    # Add tool results if any
-                    if tool_results:
-                        output += f"""
+                        
+                        # Add tool results if any
+                        if tool_results:
+                            output += f"""
 **Tool Execution Results:**
 ```json
 {json.dumps(tool_results, indent=2)}
 ```
 """
-                    
-                    output += f"""
+                        
+                        output += f"""
 **Processing Info:**
 - **Provider**: {response.provider.upper()}
 - **Model**: {response.model}
 - **Duration**: {response.response_time:.2f}s
 """
-                    
-                    if response.tokens_used:
-                        output += f"- **Tokens**: {response.tokens_used}\n"
-                    
-                    if response.finish_reason:
-                        output += f"- **Finish Reason**: {response.finish_reason}\n"
-                    
-                    # Add debug info if enabled
-                    if st.session_state.debug_mode:
-                        output += f"""
+                        
+                        if response.tokens_used:
+                            output += f"- **Tokens**: {response.tokens_used}\n"
+                        
+                        if response.finish_reason:
+                            output += f"- **Finish Reason**: {response.finish_reason}\n"
+                        
+                        # Add debug info if enabled
+                        if st.session_state.debug_mode:
+                            output += f"""
 ---
 **Debug Info:**
 - Query: {user_input}
@@ -501,17 +501,17 @@ Always provide helpful, accurate responses based on the tool results."""
 - Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 - Response Time: {response.response_time:.2f}s
 """
-                    
-                    st.write(output)
-                    st.session_state.messages.append({"role": "assistant", "content": output})
-                    
-                except Exception as e:
-                    error_msg = f"❌ Error generating response: {str(e)}"
-                    st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
-                    
-                    if st.session_state.debug_mode:
-                        st.exception(e)
+                        
+                        st.write(output)
+                        st.session_state.messages.append({"role": "assistant", "content": output})
+                        
+                    except Exception as e:
+                        error_msg = f"❌ Error generating response: {str(e)}"
+                        st.error(error_msg)
+                        st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                        
+                        if st.session_state.debug_mode:
+                            st.exception(e)
 
 def get_tools_info():
     """Get formatted tools information for system prompt"""

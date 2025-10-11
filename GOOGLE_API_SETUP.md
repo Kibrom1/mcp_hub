@@ -13,7 +13,7 @@
 #### **Method 1: Environment Variable (Recommended)**
 ```bash
 # Set the Google API key
-export GOOGLE_API_KEY="AIzaSyDvfc7dDWbnSajHDbvYOL9DIWWyilLcgqE"
+export GOOGLE_API_KEY="your-google-api-key-here"
 
 # Run the multi-LLM app
 ./run_multi_llm.sh
@@ -22,7 +22,7 @@ export GOOGLE_API_KEY="AIzaSyDvfc7dDWbnSajHDbvYOL9DIWWyilLcgqE"
 #### **Method 2: Edit Run Script**
 Edit `run_multi_llm.sh` and uncomment this line:
 ```bash
-export GOOGLE_API_KEY="AIzaSyDvfc7dDWbnSajHDbvYOL9DIWWyilLcgqE"
+export GOOGLE_API_KEY="your-google-api-key-here"
 ```
 
 #### **Method 3: Create .env File**

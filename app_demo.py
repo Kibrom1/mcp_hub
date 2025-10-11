@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 """
-MCP Hub - Simplified Tool-Aware Multi-LLM Application
-This version avoids complex package imports and works standalone
+MCP Hub - Demo Mode Application
+This version works without LLM providers for demonstration purposes
 """
 
 import streamlit as st
-import asyncio
-import time
-import json
 import sqlite3
-import subprocess
+import json
 from datetime import datetime
-from llm_providers import get_llm_manager
 
 def main():
-    """Main application entry point"""
+    """Main application entry point for demo mode"""
     st.set_page_config(
-        page_title="MCP Hub - Tool-Aware Multi-LLM",
-        page_icon="🤖",
+        page_title="MCP Hub - Demo Mode",
+        page_icon="🔧",
         layout="wide"
     )
     
@@ -27,50 +23,30 @@ def main():
     if "debug_mode" not in st.session_state:
         st.session_state.debug_mode = False
     
-    render_app()
+    render_demo_app()
 
-def render_app():
-    """Render the main application"""
+def render_demo_app():
+    """Render the demo application"""
     
     # Header
-    st.title("🤖 MCP Hub - Tool-Aware Multi-LLM")
-    st.caption("AI Assistant with access to your local MCP tools and resources")
+    st.title("🔧 MCP Hub - Demo Mode")
+    st.caption("Tool Explorer with MCP integration (No AI providers required)")
     
-    # Initialize LLM manager
-    llm_manager = None
-    available_providers = []
-    demo_mode = False
-    
-    try:
-        llm_manager = get_llm_manager()
-        available_providers = llm_manager.list_available_providers()
-        
-        if not available_providers:
-            demo_mode = True
-            st.warning("⚠️ No LLM providers available. Running in DEMO MODE.")
-            st.info("💡 To enable AI features, set your API keys in environment variables or .env file")
-            
-    except Exception as e:
-        demo_mode = True
-        st.warning(f"⚠️ LLM manager initialization failed: {e}")
-        st.info("💡 Running in DEMO MODE. Set API keys to enable AI features.")
+    # Demo mode info
+    st.info("""
+    **🔧 Demo Mode Features:**
+    - Explore available MCP tools and resources
+    - Use interactive tool interfaces
+    - Test database queries and file operations
+    - No AI chat available (requires API keys)
+    """)
     
     # Sidebar configuration
     with st.sidebar:
         st.header("⚙️ Configuration")
         
-        # Provider selection
-        if demo_mode:
-            st.warning("🔧 Demo Mode - No AI providers available")
-            st.info("**Available in Demo Mode:**\n- View tools and resources\n- Use interactive tool interfaces\n- Explore database and files")
-            selected_provider = None
-        else:
-            selected_provider = st.selectbox(
-                "🤖 LLM Provider",
-                available_providers,
-                index=0,
-                help="Select which LLM provider to use for responses"
-            )
+        st.warning("🔧 Demo Mode - No AI providers available")
+        st.info("**Available in Demo Mode:**\n- View tools and resources\n- Use interactive tool interfaces\n- Explore database and files")
         
         # Debug mode toggle
         if st.checkbox("🐛 Debug Mode", value=st.session_state.debug_mode):
@@ -169,7 +145,7 @@ def render_app():
                                     with col1:
                                         if st.button("📊 List Tables", key=f"list_tables_{server_name}"):
                                             try:
-                                                result = execute_mcp_tool("sqlite", "list_tables", {})
+                                                result = execute_sqlite_tool("list_tables", {})
                                                 st.success("📊 Database tables retrieved")
                                                 if isinstance(result, dict) and 'result' in result:
                                                     tables = result['result']
@@ -189,7 +165,7 @@ def render_app():
                                             table_name = st.text_input("Table Name", placeholder="servers", key=f"table_name_{server_name}")
                                             if table_name:
                                                 try:
-                                                    result = execute_mcp_tool("sqlite", "describe_table", {"table_name": table_name})
+                                                    result = execute_sqlite_tool("describe_table", {"table_name": table_name})
                                                     st.success(f"📋 Schema for table '{table_name}'")
                                                     if isinstance(result, dict) and 'result' in result:
                                                         schema = result['result']
@@ -209,7 +185,7 @@ def render_app():
                                             table_name = st.text_input("Table Name", placeholder="servers", key=f"sample_table_{server_name}")
                                             if table_name:
                                                 try:
-                                                    result = execute_mcp_tool("sqlite", "get_table_data", {"table_name": table_name, "limit": 5})
+                                                    result = execute_sqlite_tool("get_table_data", {"table_name": table_name, "limit": 5})
                                                     st.success(f"📄 Sample data from '{table_name}'")
                                                     if isinstance(result, dict) and 'result' in result:
                                                         data = result['result']
@@ -229,7 +205,7 @@ def render_app():
                                         if st.button("▶️ Execute Query", type="primary", key=f"execute_query_{server_name}"):
                                             if db_query:
                                                 try:
-                                                    result = execute_mcp_tool("sqlite", "query_database", {"query": db_query})
+                                                    result = execute_sqlite_tool("query_database", {"query": db_query})
                                                     st.success("✅ Query executed successfully")
                                                     if isinstance(result, dict) and 'result' in result:
                                                         query_result = result['result']
@@ -282,7 +258,7 @@ def render_app():
                                             if file_path and file_content:
                                                 try:
                                                     # Execute the write_file tool directly
-                                                    result = execute_mcp_tool("filesystem", "write_file", {
+                                                    result = execute_filesystem_tool("write_file", {
                                                         "path": file_path, 
                                                         "content": file_content
                                                     })
@@ -298,7 +274,7 @@ def render_app():
                                             try:
                                                 # Get directory path from file path or use default
                                                 dir_path = "/Users" if not file_path else "/".join(file_path.split("/")[:-1])
-                                                result = execute_mcp_tool("filesystem", "list_directory", {"path": dir_path})
+                                                result = execute_filesystem_tool("list_directory", {"path": dir_path})
                                                 st.success(f"📂 Directory contents for: {dir_path}")
                                                 st.json(result)
                                             except Exception as e:
@@ -308,7 +284,7 @@ def render_app():
                                         if st.button("📖 Read File", key=f"read_{server_name}"):
                                             if file_path:
                                                 try:
-                                                    result = execute_mcp_tool("filesystem", "read_file", {"path": file_path})
+                                                    result = execute_filesystem_tool("read_file", {"path": file_path})
                                                     st.success(f"📖 File contents of: {file_path}")
                                                     st.text_area("File Content", result.get("result", "No content"), height=200, disabled=True)
                                                 except Exception as e:
@@ -354,231 +330,17 @@ This is a markdown file created with MCP Hub.
         except Exception as e:
             st.error(f"❌ Failed to load tools: {e}")
     
-    # Main chat interface
-    if demo_mode:
-        st.header("🔧 Demo Mode - Tool Explorer")
-        st.info("**Demo Mode Features:**\n- Explore available tools and resources\n- Use interactive tool interfaces\n- Test database queries and file operations\n- No AI chat available (requires API keys)")
-        
-        # Show demo instructions
-        st.markdown("### 🛠️ Available Demo Features:")
-        st.markdown("""
-        - **🗄️ Database Tools**: Query, explore, and analyze your database
-        - **📁 File Operations**: Create, read, and manage files
-        - **💾 Memory Tools**: Store and retrieve information
-        - **🔍 Tool Discovery**: View all available MCP tools
-        """)
-        
-        # Disable chat input in demo mode
-        st.chat_input("Chat disabled in demo mode - use tool interfaces below", disabled=True)
-        
-    else:
-        st.header("💬 Chat with AI + Tools")
-        
-        # Display chat messages
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.write(message["content"])
-        
-        # Chat input
-        if user_input := st.chat_input("Ask me anything! I can use your local tools and resources..."):
-            # Add user message
-            st.chat_message("user").write(user_input)
-            st.session_state.messages.append({"role": "user", "content": user_input})
-            
-            # Generate AI response with tool access
-            with st.chat_message("assistant"):
-                with st.spinner("🤖 Thinking and using tools..."):
-                    start_time = time.time()
-                    
-                    try:
-                        # Get available tools and resources for the system prompt
-                        tools_info = get_tools_info()
-                        resources_info = get_resources_info()
-                    
-                    # Create enhanced system prompt with tool access
-                    system_prompt = f"""You are a helpful AI assistant with access to MCP (Model Context Protocol) tools and resources.
-
-Available Tools:
-{tools_info}
-
-Available Resources:
-{resources_info}
-
-When a user asks something that can be answered or accomplished using these tools, you should:
-1. Analyze the user's request
-2. Determine which tool(s) would be most helpful
-3. Execute the appropriate tool(s) with the right parameters
-4. Use the results to provide a comprehensive answer
-
-You can execute tools by responding with a special format:
-TOOL_EXECUTE: {{"tool": "tool_name", "server": "server_name", "arguments": {{"param": "value"}}}}
-
-If you need to execute multiple tools, you can chain them:
-TOOL_EXECUTE: {{"tool": "tool1", "server": "server1", "arguments": {{}}}}
-TOOL_EXECUTE: {{"tool": "tool2", "server": "server2", "arguments": {{}}}}
-
-Always provide helpful, accurate responses based on the tool results."""
-                    
-                    # Create messages for the LLM
-                    messages = [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_input}
-                    ]
-                    
-                    # Generate response using selected provider
-                    response = asyncio.run(llm_manager.generate_response(
-                        messages, 
-                        provider=selected_provider,
-                        max_tokens=2000,
-                        temperature=0.3
-                    ))
-                    
-                    # Check if response contains tool execution requests
-                    response_content = response.content
-                    tool_results = []
-                    
-                    if "TOOL_EXECUTE:" in response_content:
-                        # Extract and execute tools
-                        tool_results = execute_tools_from_response(response_content)
-                        
-                        # Generate final response with tool results
-                        final_messages = [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_input},
-                            {"role": "assistant", "content": response_content},
-                            {"role": "user", "content": f"Tool execution results: {json.dumps(tool_results, indent=2)}"}
-                        ]
-                        
-                        final_response = asyncio.run(llm_manager.generate_response(
-                            final_messages,
-                            provider=selected_provider,
-                            max_tokens=2000,
-                            temperature=0.3
-                        ))
-                        response_content = final_response.content
-                    
-                    duration = time.time() - start_time
-                    
-                    # Format response
-                    output = f"""
-**AI Response:**
-{response_content}
-"""
-                    
-                    # Add tool results if any
-                    if tool_results:
-                        output += f"""
-**Tool Execution Results:**
-```json
-{json.dumps(tool_results, indent=2)}
-```
-"""
-                    
-                    output += f"""
-**Processing Info:**
-- **Provider**: {response.provider.upper()}
-- **Model**: {response.model}
-- **Duration**: {response.response_time:.2f}s
-"""
-                    
-                    if response.tokens_used:
-                        output += f"- **Tokens**: {response.tokens_used}\n"
-                    
-                    if response.finish_reason:
-                        output += f"- **Finish Reason**: {response.finish_reason}\n"
-                    
-                    # Add debug info if enabled
-                    if st.session_state.debug_mode:
-                        output += f"""
----
-**Debug Info:**
-- Query: {user_input}
-- Provider: {response.provider}
-- Model: {response.model}
-- Tools Available: {len(tools)}
-- Resources Available: {len(resources)}
-- Success: True
-- Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-- Response Time: {response.response_time:.2f}s
-"""
-                    
-                    st.write(output)
-                    st.session_state.messages.append({"role": "assistant", "content": output})
-                    
-                except Exception as e:
-                    error_msg = f"❌ Error generating response: {str(e)}"
-                    st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
-                    
-                    if st.session_state.debug_mode:
-                        st.exception(e)
-
-def get_tools_info():
-    """Get formatted tools information for system prompt"""
-    try:
-        conn = sqlite3.connect('mcp.db')
-        cursor = conn.cursor()
-        cursor.execute("SELECT server_name, name, description, parameters FROM tools")
-        tools = cursor.fetchall()
-        conn.close()
-        
-        tools_info = []
-        for tool in tools:
-            tools_info.append(f"- {tool[0]}.{tool[1]}: {tool[2]}")
-            if tool[3]:  # parameters
-                try:
-                    params = json.loads(tool[3])
-                    tools_info.append(f"  Parameters: {list(params.keys())}")
-                except:
-                    pass
-        
-        return "\n".join(tools_info) if tools_info else "No tools available"
-        
-    except Exception as e:
-        return f"Error loading tools: {e}"
-
-def get_resources_info():
-    """Get formatted resources information for system prompt"""
-    try:
-        conn = sqlite3.connect('mcp.db')
-        cursor = conn.cursor()
-        cursor.execute("SELECT server_name, name, uri FROM resources")
-        resources = cursor.fetchall()
-        conn.close()
-        
-        resources_info = []
-        for resource in resources:
-            resources_info.append(f"- {resource[0]}.{resource[1]}: {resource[2]}")
-        
-        return "\n".join(resources_info) if resources_info else "No resources available"
-        
-    except Exception as e:
-        return f"Error loading resources: {e}"
-
-def execute_mcp_tool(server_name, tool_name, arguments):
-    """Execute an MCP tool directly"""
-    try:
-        if server_name == "sqlite":
-            return execute_sqlite_tool(tool_name, arguments)
-        elif server_name == "filesystem":
-            return execute_filesystem_tool(tool_name, arguments)
-        elif server_name == "memory":
-            return execute_memory_tool(tool_name, arguments)
-        else:
-            # For other servers, return a mock response
-            return {
-                "server": server_name,
-                "tool": tool_name,
-                "arguments": arguments,
-                "result": f"Mock execution of {server_name}.{tool_name}",
-                "success": True
-            }
-    except Exception as e:
-        return {
-            "error": f"Tool execution failed: {e}",
-            "server": server_name,
-            "tool": tool_name
-        }
+    # Demo mode instructions
+    st.markdown("### 🛠️ Available Demo Features:")
+    st.markdown("""
+    - **🗄️ Database Tools**: Query, explore, and analyze your database
+    - **📁 File Operations**: Create, read, and manage files
+    - **💾 Memory Tools**: Store and retrieve information
+    - **🔍 Tool Discovery**: View all available MCP tools
+    """)
+    
+    # Disable chat input in demo mode
+    st.chat_input("Chat disabled in demo mode - use tool interfaces above", disabled=True)
 
 def execute_sqlite_tool(tool_name, arguments):
     """Execute SQLite database tools"""
@@ -738,119 +500,6 @@ def execute_filesystem_tool(tool_name, arguments):
             "error": f"Filesystem tool execution failed: {e}",
             "success": False
         }
-
-def execute_memory_tool(tool_name, arguments):
-    """Execute memory tools"""
-    import sqlite3
-    import json
-    
-    try:
-        conn = sqlite3.connect('mcp.db')
-        cursor = conn.cursor()
-        
-        if tool_name == "store_memory":
-            key = arguments.get("key", "")
-            value = arguments.get("value", "")
-            cursor.execute("""
-                INSERT OR REPLACE INTO memories (key, value, created_at)
-                VALUES (?, ?, datetime('now'))
-            """, (key, value))
-            conn.commit()
-            return {
-                "server": "memory",
-                "tool": tool_name,
-                "result": f"Memory stored: {key}",
-                "success": True
-            }
-        elif tool_name == "retrieve_memory":
-            key = arguments.get("key", "")
-            cursor.execute("SELECT value FROM memories WHERE key = ?", (key,))
-            result = cursor.fetchone()
-            if result:
-                return {
-                    "server": "memory",
-                    "tool": tool_name,
-                    "result": result[0],
-                    "success": True
-                }
-            else:
-                return {
-                    "server": "memory",
-                    "tool": tool_name,
-                    "result": f"No memory found for key: {key}",
-                    "success": False
-                }
-        elif tool_name == "list_memories":
-            cursor.execute("SELECT key, value, created_at FROM memories ORDER BY created_at DESC")
-            memories = cursor.fetchall()
-            return {
-                "server": "memory",
-                "tool": tool_name,
-                "result": [{"key": m[0], "value": m[1], "created_at": m[2]} for m in memories],
-                "success": True
-            }
-        else:
-            return {
-                "server": "memory",
-                "tool": tool_name,
-                "result": f"Unknown tool: {tool_name}",
-                "success": False
-            }
-    except Exception as e:
-        return {
-            "server": "memory",
-            "tool": tool_name,
-            "error": f"Memory tool execution failed: {e}",
-            "success": False
-        }
-    finally:
-        conn.close()
-
-def execute_tools_from_response(response_content):
-    """Execute tools mentioned in the AI response"""
-    tool_results = []
-    
-    try:
-        # Find all TOOL_EXECUTE: lines
-        lines = response_content.split('\n')
-        for line in lines:
-            if line.strip().startswith('TOOL_EXECUTE:'):
-                # Extract JSON from the line
-                json_str = line.strip().replace('TOOL_EXECUTE:', '').strip()
-                try:
-                    tool_request = json.loads(json_str)
-                    
-                    # Execute the tool
-                    server_name = tool_request.get('server')
-                    tool_name = tool_request.get('tool')
-                    arguments = tool_request.get('arguments', {})
-                    
-                    if server_name and tool_name:
-                        result = execute_mcp_tool(server_name, tool_name, arguments)
-                        tool_results.append(result)
-                    else:
-                        tool_results.append({
-                            'error': 'Missing server or tool name',
-                            'request': tool_request
-                        })
-                        
-                except json.JSONDecodeError as e:
-                    tool_results.append({
-                        'error': f'Invalid JSON in tool request: {e}',
-                        'line': line
-                    })
-                except Exception as e:
-                    tool_results.append({
-                        'error': f'Tool execution failed: {e}',
-                        'request': tool_request
-                    })
-                    
-    except Exception as e:
-        tool_results.append({
-            'error': f'Failed to parse tool requests: {e}'
-        })
-    
-    return tool_results
 
 if __name__ == "__main__":
     main()

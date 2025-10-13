@@ -1,21 +1,25 @@
-# MCP Hub Core
+# MCP Hub - Project Overview
 
 <div align="center">
 
-![MCP Hub Core](https://img.shields.io/badge/MCP%20Hub-Core-blue?style=for-the-badge&logo=python)
+![MCP Hub](https://img.shields.io/badge/MCP%20Hub-Platform-blue?style=for-the-badge&logo=python)
+![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
 ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-**Backend API service for MCP Hub - A comprehensive platform for managing Model Context Protocol (MCP) tools, resources, and AI interactions.**
+**A comprehensive platform for managing Model Context Protocol (MCP) tools, resources, and AI interactions with multi-LLM support.**
 
-[🚀 Quick Start](#quick-start) • [📚 Documentation](#documentation) • [🔧 API Reference](#api-reference) • [🏗️ Architecture](#architecture) • [🤝 Contributing](#contributing)
+[🚀 Quick Start](#quick-start) • [🏗️ Architecture](#architecture) • [📚 Documentation](#documentation) • [🤝 Contributing](#contributing)
 
 </div>
 
-## ✨ Features
+## 🎯 Project Vision
 
-### 🤖 Multi-LLM Support
+MCP Hub is designed to be the central platform for managing and executing Model Context Protocol (MCP) tools across multiple AI providers. It provides a unified interface for developers and users to interact with various AI models while maintaining tool consistency and resource management.
+
+## ✨ Key Features
+
+### 🤖 Multi-LLM Integration
 - **OpenAI GPT** models with intelligent fallback
 - **Google Gemini** integration
 - **Anthropic Claude** support
@@ -27,13 +31,7 @@
 - Parameter extraction from conversational queries
 - Confidence scoring for tool suggestions
 
-### 🛠️ Resource Management
-- Full CRUD operations for MCP resources
-- Server management and configuration
-- Resource validation and error handling
-- Real-time status updates
-
-### ⚡ Tool Execution
+### 🛠️ Tool Management
 - Execute MCP tools with parameter validation
 - Support for SQLite, filesystem, and memory tools
 - Error handling and result formatting
@@ -51,110 +49,35 @@
 - API key management
 - Input validation and sanitization
 
-## 🚀 Quick Start
+## 🏗️ Architecture
 
-### Prerequisites
-
-- Python 3.8+
-- API keys for LLM providers (OpenAI, Google, Anthropic)
-
-### Installation
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Kibrom1/mcp_hub.git
-   cd mcp_hub/mcp-hub-core
-   ```
-
-2. **Create virtual environment**:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Set up environment variables**:
-   ```bash
-   cp env.example .env
-   # Edit .env with your API keys
-   ```
-
-5. **Initialize database**:
-   ```bash
-   python -c "from app.core.database import init_db; init_db()"
-   ```
-
-6. **Run the application**:
-   ```bash
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-The API will be available at `http://localhost:8000` with interactive documentation at `http://localhost:8000/docs`.
-
-## 🔧 Environment Variables
-
-Create a `.env` file with the following variables:
-
-```bash
-# LLM Provider API Keys
-OPENAI_API_KEY=your_openai_key_here
-GOOGLE_API_KEY=your_google_key_here
-ANTHROPIC_API_KEY=your_anthropic_key_here
-
-# Application Configuration
-CORS_ORIGINS=http://localhost:3000,http://localhost:3001
-DATABASE_URL=sqlite:///mcp.db
-LOG_LEVEL=INFO
-
-# Security (Optional)
-SECRET_KEY=your_secret_key_here
-JWT_SECRET=your_jwt_secret_here
-```
-
-## 📚 Documentation
-
-### 📖 Comprehensive Guides
-
-- **[Backend Architecture](docs/BACKEND_ARCHITECTURE.md)** - Detailed architecture overview with diagrams
-- **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation with examples
-- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production deployment instructions
-- **[Development Guide](docs/DEVELOPMENT_GUIDE.md)** - Developer setup and contribution guidelines
-
-### 🏗️ Architecture Overview
+### High-Level Architecture
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
+    subgraph "Frontend Layer"
         UI[React Frontend]
-        API_CLIENT[API Clients]
+        COMPONENTS[UI Components]
+        SERVICES[API Services]
     end
     
-    subgraph "API Gateway"
-        FASTAPI[FastAPI Application]
-        CORS[CORS Middleware]
-        AUTH[Authentication]
-    end
-    
-    subgraph "API Endpoints"
-        CHAT_API[Chat API]
-        TOOLS_API[Tools API]
-        RESOURCES_API[Resources API]
-        AUTH_API[Auth API]
+    subgraph "Backend Layer"
+        API[FastAPI Backend]
+        ENDPOINTS[API Endpoints]
+        MIDDLEWARE[Middleware]
     end
     
     subgraph "Business Logic"
         LLM_MGR[LLM Manager]
         MCP_EXEC[MCP Executor]
         NLP_PROC[NLP Processor]
+        AUTH_MGR[Auth Manager]
     end
     
     subgraph "Data Layer"
         SQLITE[(SQLite Database)]
         MEMORY[In-Memory Store]
+        CACHE[Redis Cache]
     end
     
     subgraph "External Services"
@@ -163,19 +86,14 @@ graph TB
         ANTHROPIC[Anthropic Claude]
     end
     
-    UI --> FASTAPI
-    API_CLIENT --> FASTAPI
-    FASTAPI --> CORS
-    FASTAPI --> AUTH
-    FASTAPI --> CHAT_API
-    FASTAPI --> TOOLS_API
-    FASTAPI --> RESOURCES_API
-    FASTAPI --> AUTH_API
+    UI --> API
+    COMPONENTS --> SERVICES
+    SERVICES --> ENDPOINTS
     
-    CHAT_API --> LLM_MGR
-    CHAT_API --> NLP_PROC
-    TOOLS_API --> MCP_EXEC
-    RESOURCES_API --> SQLITE
+    API --> LLM_MGR
+    API --> MCP_EXEC
+    API --> NLP_PROC
+    API --> AUTH_MGR
     
     LLM_MGR --> OPENAI
     LLM_MGR --> GOOGLE
@@ -184,9 +102,106 @@ graph TB
     MCP_EXEC --> SQLITE
     MCP_EXEC --> MEMORY
     NLP_PROC --> MCP_EXEC
+    
+    AUTH_MGR --> SQLITE
+    API --> CACHE
 ```
 
-## 🔧 API Reference
+### Project Structure
+
+```
+mcp_hub/
+├── mcp-hub-core/              # Backend API (FastAPI)
+│   ├── app/
+│   │   ├── api/               # API endpoints
+│   │   ├── core/              # Core configuration
+│   │   └── services/          # Business logic
+│   ├── docs/                  # Backend documentation
+│   ├── main.py                # FastAPI application
+│   └── requirements.txt       # Python dependencies
+├── mcp-hub-ui/                # Frontend (React)
+│   ├── src/
+│   │   ├── components/        # React components
+│   │   ├── pages/            # Page components
+│   │   └── services/         # API services
+│   ├── tests/                # E2E tests (Playwright)
+│   └── package.json          # Node.js dependencies
+├── docs/                      # Project documentation
+├── .gitignore                 # Git ignore rules
+└── README.md                  # Project overview
+```
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.8+
+- Node.js 16+
+- API keys for LLM providers (OpenAI, Google, Anthropic)
+
+### Backend Setup
+
+```bash
+# Navigate to backend
+cd mcp-hub-core
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up environment variables
+cp env.example .env
+# Edit .env with your API keys
+
+# Initialize database
+python -c "from app.core.database import init_db; init_db()"
+
+# Run backend
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Frontend Setup
+
+```bash
+# Navigate to frontend
+cd mcp-hub-ui
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp env.example .env
+# Edit .env with your configuration
+
+# Run frontend
+npm start
+```
+
+### Access the Application
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
+
+## 📚 Documentation
+
+### Comprehensive Guides
+
+- **[Backend Architecture](mcp-hub-core/docs/BACKEND_ARCHITECTURE.md)** - Detailed backend architecture with diagrams
+- **[API Reference](mcp-hub-core/docs/API_REFERENCE.md)** - Complete API documentation with examples
+- **[Deployment Guide](mcp-hub-core/docs/DEPLOYMENT_GUIDE.md)** - Production deployment instructions
+- **[Development Guide](mcp-hub-core/docs/DEVELOPMENT_GUIDE.md)** - Developer setup and contribution guidelines
+
+### Component Documentation
+
+- **[Frontend Components](mcp-hub-ui/README.md)** - React component documentation
+- **[Backend Services](mcp-hub-core/README.md)** - Backend service documentation
+- **[Database Schema](mcp-hub-core/docs/BACKEND_ARCHITECTURE.md#database-schema)** - Database structure and relationships
+
+## 🔧 API Endpoints
 
 ### System Status
 - `GET /api/status` - Get system status and health information
@@ -262,55 +277,9 @@ print(response.json())
 # Output: {"message": "Resource created successfully", "resource": {...}}
 ```
 
-## 🏗️ Architecture
-
-The backend is built with a modular, scalable architecture:
-
-- **FastAPI**: Modern, fast web framework for building APIs
-- **SQLAlchemy**: SQL toolkit and ORM for database operations
-- **Pydantic**: Data validation using Python type annotations
-- **WebSockets**: Real-time communication support
-- **Multi-LLM Support**: OpenAI, Google Gemini, Anthropic Claude with fallback logic
-
-### Database Schema
-
-```mermaid
-erDiagram
-    SERVERS ||--o{ RESOURCES : "has"
-    SERVERS ||--o{ TOOLS : "provides"
-    
-    SERVERS {
-        int id PK
-        string name UK
-        string uri
-        boolean enabled
-        string description
-        timestamp created_at
-    }
-    
-    RESOURCES {
-        int id PK
-        string server_name FK
-        string name
-        string uri
-        string description
-        boolean enabled
-        timestamp created_at
-    }
-    
-    TOOLS {
-        int id PK
-        string server_name FK
-        string name
-        string description
-        string parameters
-        timestamp created_at
-    }
-```
-
 ## 🧪 Development
 
-### Running Tests
+### Backend Development
 
 ```bash
 # Install development dependencies
@@ -321,46 +290,53 @@ pytest
 
 # Run with coverage
 pytest --cov=app --cov-report=html
+
+# Code quality checks
+black app/ tests/
+isort app/ tests/
+flake8 app/ tests/
+mypy app/
 ```
 
-### Code Quality
+### Frontend Development
 
 ```bash
-# Format code
-black app/ tests/
+# Install dependencies
+npm install
 
-# Sort imports
-isort app/ tests/
+# Run development server
+npm start
 
-# Lint code
-flake8 app/ tests/
+# Run tests
+npm test
 
-# Type checking
-mypy app/
+# Run E2E tests
+npm run test:e2e
+
+# Build for production
+npm run build
 ```
 
 ## 🚀 Deployment
 
-### Docker
+### Docker Deployment
 
 ```bash
-# Build Docker image
+# Backend
+cd mcp-hub-core
 docker build -t mcp-hub-core .
+docker run -d -p 8000:8000 mcp-hub-core
 
-# Run container
-docker run -d \
-  --name mcp-hub-core \
-  -p 8000:8000 \
-  -e OPENAI_API_KEY=your_key \
-  -e GOOGLE_API_KEY=your_key \
-  -e ANTHROPIC_API_KEY=your_key \
-  mcp-hub-core
+# Frontend
+cd mcp-hub-ui
+docker build -t mcp-hub-ui .
+docker run -d -p 3000:3000 mcp-hub-ui
 ```
 
 ### Docker Compose
 
 ```bash
-# Deploy with Docker Compose
+# Deploy both services
 docker-compose up -d
 ```
 
@@ -370,38 +346,6 @@ docker-compose up -d
 # Deploy to Kubernetes
 kubectl apply -f k8s/
 ```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow PEP 8 style guidelines
-- Use type hints for all functions
-- Write comprehensive docstrings
-- Include unit tests for new features
-- Update documentation for API changes
-
-## 📊 Performance
-
-### Benchmarks
-
-- **Response Time**: < 200ms for tool execution
-- **Throughput**: 1000+ requests/minute
-- **Memory Usage**: < 512MB base usage
-- **Database**: SQLite with connection pooling
-
-### Monitoring
-
-- Health check endpoint: `/api/status`
-- Prometheus metrics integration
-- Structured logging with different levels
-- Performance monitoring and alerting
 
 ## 🔒 Security
 
@@ -424,6 +368,22 @@ kubectl apply -f k8s/
 - Audit logging and monitoring
 - Regular security updates
 
+## 📊 Performance
+
+### Benchmarks
+
+- **Response Time**: < 200ms for tool execution
+- **Throughput**: 1000+ requests/minute
+- **Memory Usage**: < 512MB base usage
+- **Database**: SQLite with connection pooling
+
+### Monitoring
+
+- Health check endpoints
+- Prometheus metrics integration
+- Structured logging with different levels
+- Performance monitoring and alerting
+
 ## 📈 Roadmap
 
 ### Upcoming Features
@@ -436,6 +396,23 @@ kubectl apply -f k8s/
 - [ ] **Monitoring**: Advanced monitoring and alerting
 - [ ] **API Versioning**: Support for API versioning
 - [ ] **GraphQL**: GraphQL endpoint for flexible queries
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Guidelines
+
+- Follow PEP 8 style guidelines for Python
+- Follow ESLint rules for JavaScript/React
+- Use type hints for all Python functions
+- Write comprehensive docstrings
+- Include unit tests for new features
+- Update documentation for API changes
 
 ## 📄 License
 
@@ -453,11 +430,13 @@ For questions and support:
 ## 🙏 Acknowledgments
 
 - **FastAPI** team for the excellent web framework
+- **React** team for the frontend library
 - **OpenAI** for GPT models and API
 - **Google** for Gemini API
 - **Anthropic** for Claude API
 - **SQLAlchemy** for database ORM
 - **Pydantic** for data validation
+- **Material-UI** for React components
 
 ---
 

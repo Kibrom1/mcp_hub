@@ -1,121 +1,215 @@
-# 🤖 MCP Hub - Model Context Protocol Integration Platform
+# 🚀 MCP Hub - Multi-LLM Tool Integration Platform
 
-A simple, working MCP tool integration platform with multi-LLM support.
+A modern, separated architecture for integrating multiple LLM providers with MCP (Model Context Protocol) tools and resources.
 
-## ✨ Features
+## 📁 **Project Structure**
 
-- **🛠️ MCP Tool Integration**: Connect to and use MCP servers
-- **🤖 Multi-LLM Support**: OpenAI GPT and Google Gemini
-- **📁 File Operations**: Create, read, and manage files
-- **💾 Memory Management**: Store and retrieve information
-- **🎯 Tool-Aware AI**: LLM can execute tools during conversations
+This repository contains two separate projects:
 
-## 🚀 Quick Start
+### 🔧 **mcp-hub-core** (Backend API)
+- **FastAPI** backend with multi-LLM support
+- **MCP tool execution** for database, filesystem, and memory operations
+- **WebSocket** support for real-time communication
+- **Secure API key management** with encryption
+- **SQLite database** integration
 
-### 1. Setup
+### 🎨 **mcp-hub-ui** (Frontend React)
+- **React** frontend with Material-UI
+- **Real-time chat** interface with AI
+- **Tool management** and execution interface
+- **Resource explorer** for database and files
+- **Responsive design** for all devices
+
+---
+
+## 🚀 **Quick Start**
+
+### **1. Backend Setup**
 ```bash
+cd mcp-hub-core
+
 # Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-### 2. Configure API Keys
-```bash
-# Option 1: Create a .env file (recommended)
+# Setup environment
 cp env.example .env
-# Edit .env and add your API keys:
-# OPENAI_API_KEY=your_openai_api_key_here
-# GOOGLE_API_KEY=your_google_api_key_here
+# Edit .env with your API keys
 
-# Option 2: Set environment variables directly
-export OPENAI_API_KEY="your-openai-key"
-export GOOGLE_API_KEY="your-google-key"
+# Initialize database
+python -c "from app.core.database import init_db; init_db()"
+
+# Start the API server
+python main.py
 ```
 
-**Get your API keys:**
-- **OpenAI**: https://platform.openai.com/api-keys
-- **Google Gemini**: https://makersuite.google.com/app/apikey
-
-### 3. Discover Tools
+### **2. Frontend Setup**
 ```bash
-# Add MCP servers
-python add_mcp_servers.py --add
+cd mcp-hub-ui
 
-# Discover available tools
-python discover_tools.py
+# Install dependencies
+npm install
+
+# Setup environment
+cp env.example .env
+# Edit .env with your API URL
+
+# Start development server
+npm start
 ```
 
-### 4. Run Application
+### **3. Access the Application**
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/api/docs
+
+---
+
+## 🎯 **Features**
+
+### **🤖 Multi-LLM Support**
+- **OpenAI GPT** - GPT-4, GPT-3.5-turbo
+- **Google Gemini** - Gemini Pro, Gemini Pro Vision
+- **Anthropic Claude** - Claude-3 Sonnet, Haiku, Opus
+
+### **🔧 MCP Tools**
+- **Database Operations** - SQL queries, table management
+- **File System** - Read, write, list files and directories
+- **Memory Store** - Store and retrieve information
+- **Real-time Execution** - Execute tools via chat interface
+
+### **💬 Chat Interface**
+- **Real-time AI conversations** with WebSocket
+- **Tool integration** - AI can use tools automatically
+- **Message history** and persistence
+- **Typing indicators** and status updates
+
+### **📊 Dashboard**
+- **System overview** and statistics
+- **Tool and resource counts**
+- **Health monitoring** and status
+- **Quick actions** and navigation
+
+### **🔒 Security**
+- **Encrypted API key storage** with master password
+- **Environment variable** support
+- **CORS configuration** for cross-origin requests
+- **Input validation** and sanitization
+
+---
+
+## 🏗️ **Architecture**
+
+```
+┌─────────────────┐    ┌─────────────────┐
+│   mcp-hub-ui    │◄──►│   mcp-hub-core  │
+│   (React)       │    │   (FastAPI)     │
+│   Port: 3000    │    │   Port: 8000    │
+└─────────────────┘    └─────────────────┘
+```
+
+### **Communication**
+- **REST API** for data operations
+- **WebSocket** for real-time chat
+- **Environment variables** for configuration
+- **CORS** properly configured
+
+---
+
+## 📚 **Documentation**
+
+### **Backend (mcp-hub-core)**
+- **API Reference**: http://localhost:8000/api/docs
+- **ReDoc**: http://localhost:8000/api/redoc
+- **README**: `mcp-hub-core/README.md`
+
+### **Frontend (mcp-hub-ui)**
+- **Component Docs**: Built-in React documentation
+- **README**: `mcp-hub-ui/README.md`
+
+---
+
+## 🔧 **Configuration**
+
+### **API Keys**
+Set your API keys in `mcp-hub-core/.env`:
 ```bash
-./run.sh
+OPENAI_API_KEY=your_openai_key_here
+GOOGLE_API_KEY=your_google_key_here
+ANTHROPIC_API_KEY=your_anthropic_key_here
 ```
 
-Access at: http://localhost:8501
+### **Environment Variables**
+- **Backend**: `mcp-hub-core/env.example`
+- **Frontend**: `mcp-hub-ui/env.example`
 
-## 📁 Project Structure
+---
 
-```
-mcp_hub/
-├── app.py                    # Main Streamlit application
-├── run.sh                    # Application runner
-├── llm_providers.py          # Multi-LLM provider management
-├── discover_tools.py         # MCP tool discovery
-├── list_tools.py            # List available tools
-├── add_mcp_servers.py       # MCP server management
-├── requirements.txt         # Python dependencies
-├── config/                   # Configuration files
-├── deployment/              # Deployment configurations
-└── tests/                   # Test suite
-```
+## 🚀 **Deployment**
 
-## 🛠️ Available Tools
-
-### Filesystem Server
-- `read_file` - Read file contents
-- `write_file` - Write content to files
-- `list_directory` - List directory contents
-
-### Memory Server
-- `store_memory` - Store information
-- `retrieve_memory` - Retrieve stored information
-- `list_memories` - List all stored memories
-
-## 🤖 LLM Providers
-
-- **OpenAI**: GPT-4o-mini
-- **Google Gemini**: gemini-2.0-flash
-
-## 📚 Documentation
-
-- [OpenAI Setup](OPENAI_SETUP.md)
-- [Google API Setup](GOOGLE_API_SETUP.md)
-- [Tool Integration Guide](TOOL_INTEGRATION_GUIDE.md)
-- [Production Ready](PRODUCTION_READY.md)
-
-## 🧪 Testing
-
+### **Development**
 ```bash
-# Run tests
-pytest tests/
+# Backend
+cd mcp-hub-core && python main.py
 
-# Test specific components
-python -m pytest tests/test_core/
+# Frontend
+cd mcp-hub-ui && npm start
 ```
 
-## 🚀 Deployment
-
+### **Production**
 ```bash
-# Docker deployment
-cd deployment/docker
-docker-compose up -d
+# Backend
+cd mcp-hub-core
+pip install -r requirements.txt
+gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker
 
-# Kubernetes deployment
-kubectl apply -f deployment/k8s/
+# Frontend
+cd mcp-hub-ui
+npm run build
+npx serve -s build
 ```
 
-## 📄 License
+### **Docker**
+```bash
+# Backend
+docker build -t mcp-hub-core ./mcp-hub-core
+docker run -p 8000:8000 mcp-hub-core
 
-MIT License - see LICENSE file for details.
+# Frontend
+docker build -t mcp-hub-ui ./mcp-hub-ui
+docker run -p 3000:3000 mcp-hub-ui
+```
+
+---
+
+## 🎯 **Benefits of Separation**
+
+- ✅ **Independent deployment** - Deploy frontend/backend separately
+- ✅ **Technology flexibility** - Use different tech stacks
+- ✅ **Team scalability** - Different teams can work on each
+- ✅ **Performance optimization** - Optimize each service independently
+- ✅ **Easier maintenance** - Focused debugging and updates
+
+---
+
+## 🆘 **Support**
+
+- **Backend Issues**: Check `mcp-hub-core/README.md`
+- **Frontend Issues**: Check `mcp-hub-ui/README.md`
+- **API Documentation**: http://localhost:8000/api/docs
+- **GitHub Issues**: Create issues in respective repositories
+
+---
+
+## 📄 **License**
+
+MIT License - see LICENSE file for details
+
+---
+
+**🎉 MCP Hub - Modern Multi-LLM Tool Integration Platform**
+
+**Ready for development, deployment, and scaling! 🚀**

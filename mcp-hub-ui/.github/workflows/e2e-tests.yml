@@ -1,0 +1,75 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * *' # Run daily at 2 AM
+
+jobs:
+  e2e-tests:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: mcp-hub-ui/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd mcp-hub-ui
+        npm ci
+    
+    - name: Install Playwright browsers
+      run: |
+        cd mcp-hub-ui
+        npx playwright install --with-deps
+    
+    - name: Start backend
+      run: |
+        cd mcp-hub-core
+        python -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
+        uvicorn main:app --host 0.0.0.0 --port 8000 &
+        sleep 10
+    
+    - name: Start frontend
+      run: |
+        cd mcp-hub-ui
+        npm start &
+        sleep 15
+    
+    - name: Wait for services
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:8000/api/health; do sleep 2; done'
+        timeout 60 bash -c 'until curl -f http://localhost:3001; do sleep 2; done'
+    
+    - name: Run Playwright tests
+      run: |
+        cd mcp-hub-ui
+        npx playwright test
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: playwright-report
+        path: mcp-hub-ui/playwright-report/
+        retention-days: 30
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: mcp-hub-ui/test-results/
+        retention-days: 30

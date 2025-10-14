@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: mcp-hub-postgres
+    environment:
+      POSTGRES_DB: mcp_hub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mcp_hub_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mcp_hub"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - mcp-hub-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: mcp-hub-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mcp-hub-network
+
+  mcp-hub-core:
+    build: 
+      context: ./mcp-hub-core
+      dockerfile: Dockerfile
+    container_name: mcp-hub-backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql://postgres:mcp_hub_password@postgres:5432/mcp_hub
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: mcp_hub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mcp_hub_password
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      
+      # API Keys (set these in your .env file)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      
+      # Application
+      SECRET_KEY: ${SECRET_KEY:-your-super-secret-key-change-in-production}
+      LOG_LEVEL: INFO
+      LOG_FILE: logs/mcp_hub.log
+      
+      # CORS
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./mcp-hub-core:/app
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mcp-hub-network
+    restart: unless-stopped
+
+  mcp-hub-ui:
+    build:
+      context: ./mcp-hub-ui
+      dockerfile: Dockerfile
+    container_name: mcp-hub-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_WS_URL: ws://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./mcp-hub-ui:/app
+      - /app/node_modules
+    depends_on:
+      - mcp-hub-core
+    networks:
+      - mcp-hub-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  mcp-hub-network:
+    driver: bridge

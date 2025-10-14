@@ -225,3 +225,6 @@ class LLMManager:
     def get_all_providers_info(self) -> Dict[str, Any]:
         """Get information about all providers"""
         return self.providers
+
+# Global instance
+llm_manager = LLMManager()

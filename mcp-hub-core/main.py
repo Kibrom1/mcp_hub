@@ -17,11 +17,13 @@ from typing import List, Dict, Any, Optional
 import asyncio
 
 # Import MCP Hub modules
-from app.api import tools, chat, resources, auth
+from app.api import tools, chat, resources, auth, databases
 from app.core.config import settings
 from app.core.database import init_db
+from app.core.multi_database_manager import multi_db_manager, DatabaseConfig, DatabaseType
 from app.services.llm_manager import LLMManager
 from app.services.mcp_executor import MCPExecutor
+from app.services.database_chat_service import database_chat_service
 
 # Create FastAPI app
 app = FastAPI(
@@ -46,6 +48,7 @@ app.include_router(tools.router, prefix="/api/tools", tags=["tools"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(resources.router, prefix="/api/resources", tags=["resources"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(databases.router, prefix="/api/databases", tags=["databases"])
 
 # Global variables
 llm_manager = None
@@ -73,6 +76,39 @@ async def startup_event():
         print("✅ MCP Executor initialized")
     except Exception as e:
         print(f"⚠️ MCP Executor initialization failed: {e}")
+    
+    # Initialize default databases
+    try:
+        # Add the main MCP Hub database
+        mcp_hub_config = DatabaseConfig(
+            name="mcp_hub",
+            type=DatabaseType.SQLITE,
+            host="localhost",
+            port=0,
+            database="mcp.db",
+            username="",
+            password="",
+            is_active=True
+        )
+        await multi_db_manager.add_database(mcp_hub_config)
+        print("✅ MCP Hub database added")
+        
+        # Add PostgreSQL database if available
+        postgres_config = DatabaseConfig(
+            name="postgres_main",
+            type=DatabaseType.POSTGRESQL,
+            host="localhost",
+            port=5432,
+            database="mcp_hub",
+            username="postgres",
+            password="mcp_hub_password",
+            is_active=True
+        )
+        await multi_db_manager.add_database(postgres_config)
+        print("✅ PostgreSQL database added")
+        
+    except Exception as e:
+        print(f"⚠️ Database initialization failed: {e}")
 
 @app.get("/")
 async def root():
@@ -162,28 +198,45 @@ async def websocket_endpoint(websocket: WebSocket):
         active_connections.remove(websocket)
 
 async def process_chat_message(content: str) -> str:
-    """Process chat message with LLM"""
+    """Process chat message with LLM and database integration"""
     if not llm_manager:
         return "LLM manager not available"
     
     try:
+        # Check if the message is database-related
+        database_keywords = ['database', 'table', 'query', 'sql', 'schema', 'data', 'select', 'insert', 'update', 'delete']
+        is_database_query = any(keyword in content.lower() for keyword in database_keywords)
+        
+        if is_database_query:
+            # Process database-related query
+            result = await database_chat_service.process_database_query(content)
+            return result.get('response', 'Database query processed')
+        
         # Get available tools and resources
         tools_info = get_tools_info()
         resources_info = get_resources_info()
+        databases_info = get_databases_info()
         
-        system_prompt = f"""You are a helpful AI assistant with access to MCP tools and resources.
+        system_prompt = f"""You are a helpful AI assistant with access to MCP tools, resources, and multiple databases.
 
 Available Tools: {tools_info}
 Available Resources: {resources_info}
+Available Databases: {databases_info}
 
-When a user asks something that can be answered using these tools, you should:
+When a user asks something that can be answered using these tools or databases, you should:
 1. Analyze the user's request
-2. Determine which tool(s) would be most helpful
-3. Execute the appropriate tool(s)
+2. Determine which tool(s) or database queries would be most helpful
+3. Execute the appropriate tool(s) or database operations
 4. Use the results to provide a comprehensive answer
 
 You can execute tools by responding with:
 TOOL_EXECUTE: {{"tool": "tool_name", "server": "server_name", "arguments": {{"param": "value"}}}}
+
+For database queries, I can help with:
+- Schema exploration
+- Data queries
+- Search across databases
+- Health checks
 """
         
         messages = [
@@ -247,6 +300,19 @@ def get_resources_info() -> str:
         return "\n".join(resources_info)
     except Exception as e:
         return f"Error loading resources: {e}"
+
+def get_databases_info() -> str:
+    """Get formatted databases information"""
+    try:
+        databases = multi_db_manager.get_database_list()
+        databases_info = []
+        for db in databases:
+            status = "active" if db['is_active'] else "inactive"
+            databases_info.append(f"- {db['name']} ({db['type']}) - {status}")
+        
+        return "\n".join(databases_info) if databases_info else "No databases configured"
+    except Exception as e:
+        return f"Error loading databases: {e}"
 
 if __name__ == "__main__":
     uvicorn.run(

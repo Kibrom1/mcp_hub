@@ -19,6 +19,8 @@ import {
   Tabs,
   Tab,
   Paper,
+  Collapse,
+  IconButton,
 } from '@mui/material';
 import {
   PlayArrow as PlayIcon,
@@ -27,6 +29,8 @@ import {
   Home as HomeIcon,
   Build as BuildIcon,
   NavigateNext as NavigateNextIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
@@ -39,6 +43,10 @@ function Tools() {
   const [selectedServer, setSelectedServer] = useState('all');
   const [activeTab, setActiveTab] = useState(0);
   const queryClient = useQueryClient();
+  
+  // Collapsible sections state
+  const [expandedServers, setExpandedServers] = useState({});
+  const [allServersExpanded, setAllServersExpanded] = useState(false);
 
   // Fetch tools (now grouped by server)
   const { data: toolsData, isLoading: toolsLoading } = useQuery({
@@ -91,6 +99,27 @@ function Tools() {
     setSelectedTool(null);
     setToolArguments({});
     setExecutionResult(null);
+  };
+
+  // Collapsible handlers
+  const handleToggleServer = (serverName) => {
+    setExpandedServers(prev => ({
+      ...prev,
+      [serverName]: !prev[serverName]
+    }));
+  };
+
+  const handleToggleAllServers = () => {
+    const newExpandedState = !allServersExpanded;
+    setAllServersExpanded(newExpandedState);
+    
+    // Update all servers to the same expanded state
+    const serversToUpdate = servers.reduce((acc, server) => {
+      acc[server.server] = newExpandedState;
+      return acc;
+    }, {});
+    
+    setExpandedServers(serversToUpdate);
   };
 
   const renderParameterInput = (paramName, paramInfo) => {
@@ -276,30 +305,67 @@ function Tools() {
         </CardContent>
       </Card>
       
+      {/* Expand/Collapse All Button */}
+      {servers.length > 0 && (
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            startIcon={allServersExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            onClick={handleToggleAllServers}
+            size="small"
+          >
+            {allServersExpanded ? 'Collapse All' : 'Expand All'}
+          </Button>
+        </Box>
+      )}
+      
       {/* Grouped Tools by Server */}
       {servers
         .filter(server => selectedServer === 'all' || server.server === selectedServer)
-        .map((server) => (
-        <Card key={server.server} sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {server.server.charAt(0).toUpperCase() + server.server.slice(1)} Server
-                </Typography>
-                <Chip
-                  label={server.enabled ? 'Enabled' : 'Disabled'}
-                  color={server.enabled ? 'success' : 'default'}
-                  size="small"
-                />
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                {server.uri}
-              </Typography>
-            </Box>
-            
-            <Grid container spacing={2}>
-              {server.tools.map((tool) => (
+        .map((server) => {
+          const isServerExpanded = expandedServers[server.server] || false;
+          
+          return (
+            <Card key={server.server} sx={{ mb: 3 }}>
+              <CardContent>
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    mb: 2,
+                    cursor: 'pointer',
+                    '&:hover': {
+                      bgcolor: 'action.hover'
+                    },
+                    p: 1,
+                    borderRadius: 1
+                  }}
+                  onClick={() => handleToggleServer(server.server)}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {server.server.charAt(0).toUpperCase() + server.server.slice(1)} Server
+                    </Typography>
+                    <Chip
+                      label={server.enabled ? 'Enabled' : 'Disabled'}
+                      color={server.enabled ? 'success' : 'default'}
+                      size="small"
+                    />
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      {server.uri}
+                    </Typography>
+                    <IconButton size="small">
+                      {isServerExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    </IconButton>
+                  </Box>
+                    </Box>
+                
+                <Collapse in={isServerExpanded}>
+                  <Grid container spacing={2}>
+                    {server.tools.map((tool) => (
                 <Grid item xs={12} sm={6} md={4} key={tool.name}>
                   <Card 
                     sx={{ 
@@ -345,11 +411,13 @@ function Tools() {
                     </CardContent>
                   </Card>
                 </Grid>
-              ))}
-            </Grid>
-          </CardContent>
-        </Card>
-      ))}
+                    ))}
+                  </Grid>
+                </Collapse>
+              </CardContent>
+            </Card>
+          );
+        })}
 
       {/* No tools found message */}
       {selectedServer !== 'all' && 

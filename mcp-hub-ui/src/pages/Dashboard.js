@@ -41,6 +41,7 @@ function Dashboard() {
     }
   });
 
+
   const handleRefresh = () => {
     queryClient.invalidateQueries(['status']);
   };
@@ -265,6 +266,7 @@ function Dashboard() {
             </CardContent>
           </Card>
         </Grid>
+
       </Grid>
 
       {/* Quick Actions */}

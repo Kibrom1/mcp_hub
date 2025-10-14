@@ -29,10 +29,16 @@ import {
   MenuItem,
   IconButton,
   Tooltip,
+  Switch,
+  FormControlLabel,
+  Collapse,
 } from '@mui/material';
 import {
   Storage as StorageIcon,
   Storage as DatabaseIcon,
+  Storage as PostgreSQLIcon,
+  Storage as SQLiteIcon,
+  Storage as MySQLIcon,
   Folder as FolderIcon,
   Memory as MemoryIcon,
   Search as SearchIcon,
@@ -40,7 +46,12 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
   Settings as SettingsIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
@@ -53,12 +64,22 @@ function Resources() {
   const [activeTab, setActiveTab] = useState(0);
   const queryClient = useQueryClient();
   
+  // Collapsible sections state
+  const [serversExpanded, setServersExpanded] = useState(true);
+  const [resourcesExpanded, setResourcesExpanded] = useState(true);
+  const [databasesExpanded, setDatabasesExpanded] = useState(true);
+  const [expandedServers, setExpandedServers] = useState({});
+  
   // Resource management state
   const [addResourceDialogOpen, setAddResourceDialogOpen] = useState(false);
   const [addServerDialogOpen, setAddServerDialogOpen] = useState(false);
+  const [addDatabaseDialogOpen, setAddDatabaseDialogOpen] = useState(false);
   const [editResourceDialogOpen, setEditResourceDialogOpen] = useState(false);
+  const [editDatabaseDialogOpen, setEditDatabaseDialogOpen] = useState(false);
   const [deleteResourceDialogOpen, setDeleteResourceDialogOpen] = useState(false);
+  const [deleteDatabaseDialogOpen, setDeleteDatabaseDialogOpen] = useState(false);
   const [resourceToDelete, setResourceToDelete] = useState(null);
+  const [databaseToDelete, setDatabaseToDelete] = useState(null);
   const [newResource, setNewResource] = useState({
     name: '',
     uri: '',
@@ -71,11 +92,35 @@ function Resources() {
     enabled: true,
     description: ''
   });
+  const [newDatabase, setNewDatabase] = useState({
+    name: '',
+    type: 'sqlite',
+    host: 'localhost',
+    port: 0,
+    database: '',
+    username: '',
+    password: '',
+    is_active: true,
+    max_connections: 10,
+    timeout: 30
+  });
   const [editResource, setEditResource] = useState({
     name: '',
     uri: '',
     server_name: '',
     description: ''
+  });
+  const [editDatabase, setEditDatabase] = useState({
+    name: '',
+    type: 'sqlite',
+    host: 'localhost',
+    port: 0,
+    database: '',
+    username: '',
+    password: '',
+    is_active: true,
+    max_connections: 10,
+    timeout: 30
   });
 
   // Fetch resources
@@ -102,6 +147,12 @@ function Resources() {
   const { data: serversData } = useQuery({
     queryKey: ['servers'],
     queryFn: () => api.get('/api/resources/servers/'),
+  });
+
+  // Fetch databases
+  const { data: databasesData } = useQuery({
+    queryKey: ['databases'],
+    queryFn: () => api.get('/api/databases/'),
   });
 
   // Resource management mutations
@@ -151,6 +202,45 @@ function Resources() {
     },
   });
 
+  // Database management mutations
+  const createDatabaseMutation = useMutation({
+    mutationFn: (databaseData) => api.post('/api/databases/', databaseData),
+    onSuccess: () => {
+      setAddDatabaseDialogOpen(false);
+      setNewDatabase({
+        name: '',
+        type: 'sqlite',
+        host: 'localhost',
+        port: 0,
+        database: '',
+        username: '',
+        password: '',
+        is_active: true,
+        max_connections: 10,
+        timeout: 30
+      });
+      queryClient.invalidateQueries(['databases']);
+    },
+  });
+
+  const updateDatabaseMutation = useMutation({
+    mutationFn: ({ databaseName, databaseData }) => 
+      api.put(`/api/databases/${databaseName}`, databaseData),
+    onSuccess: () => {
+      setEditDatabaseDialogOpen(false);
+      queryClient.invalidateQueries(['databases']);
+    },
+  });
+
+  const deleteDatabaseMutation = useMutation({
+    mutationFn: (databaseName) => api.delete(`/api/databases/${databaseName}`),
+    onSuccess: () => {
+      setDeleteDatabaseDialogOpen(false);
+      setDatabaseToDelete(null);
+      queryClient.invalidateQueries(['databases']);
+    },
+  });
+
   const handleResourceClick = (resource) => {
     setSelectedResource(resource);
     if (resource.uri.startsWith('sqlite://')) {
@@ -183,6 +273,33 @@ function Resources() {
     if (uri.startsWith('memory://')) return 'Memory Store';
     if (uri.startsWith('/')) return 'File System';
     return 'Resource';
+  };
+
+  // Database-specific helper functions
+  const getDatabaseIcon = (type) => {
+    switch (type.toLowerCase()) {
+      case 'postgresql':
+        return <PostgreSQLIcon />;
+      case 'sqlite':
+        return <SQLiteIcon />;
+      case 'mysql':
+        return <MySQLIcon />;
+      default:
+        return <DatabaseIcon />;
+    }
+  };
+
+  const getDatabaseColor = (type) => {
+    switch (type.toLowerCase()) {
+      case 'postgresql':
+        return 'primary';
+      case 'sqlite':
+        return 'secondary';
+      case 'mysql':
+        return 'success';
+      default:
+        return 'default';
+    }
   };
 
   // Resource management handlers
@@ -229,6 +346,119 @@ function Resources() {
     }
   };
 
+  // Database management handlers
+  const handleAddDatabase = () => {
+    createDatabaseMutation.mutate(newDatabase);
+  };
+
+  const handleDeleteDatabase = (database) => {
+    setDatabaseToDelete(database);
+    setDeleteDatabaseDialogOpen(true);
+  };
+
+  const handleConfirmDeleteDatabase = () => {
+    if (databaseToDelete) {
+      deleteDatabaseMutation.mutate(databaseToDelete.name);
+    }
+  };
+
+  const handleEditDatabase = (database) => {
+    setEditDatabase({
+      name: database.name,
+      type: database.type,
+      host: database.host,
+      port: database.port,
+      database: database.database,
+      username: database.username || '',
+      password: database.password || '',
+      is_active: database.is_active,
+      max_connections: database.max_connections || 10,
+      timeout: database.timeout || 30
+    });
+    setEditDatabaseDialogOpen(true);
+  };
+
+  const handleUpdateDatabase = () => {
+    if (editDatabase.name && editDatabase.type && editDatabase.database) {
+      updateDatabaseMutation.mutate({
+        databaseName: editDatabase.name,
+        databaseData: editDatabase
+      });
+    }
+  };
+
+  const handleTypeChange = (type) => {
+    const updates = { type };
+    
+    // Set default values based on database type
+    switch (type) {
+      case 'postgresql':
+        updates.port = 5432;
+        updates.username = 'postgres';
+        updates.password = 'mcp_hub_password';
+        break;
+      case 'mysql':
+        updates.port = 3306;
+        updates.username = 'root';
+        updates.password = 'password';
+        break;
+      case 'sqlite':
+        updates.port = 0;
+        updates.host = 'localhost';
+        updates.username = '';
+        updates.password = '';
+        break;
+      default:
+        // No additional updates for unknown types
+        break;
+    }
+    
+    setNewDatabase({ ...newDatabase, ...updates });
+  };
+
+  const handleEditTypeChange = (type) => {
+    const updates = { type };
+    
+    // Set default values based on database type
+    switch (type) {
+      case 'postgresql':
+        updates.port = 5432;
+        break;
+      case 'mysql':
+        updates.port = 3306;
+        break;
+      case 'sqlite':
+        updates.port = 0;
+        updates.host = 'localhost';
+        break;
+      default:
+        // No additional updates for unknown types
+        break;
+    }
+    
+    setEditDatabase({ ...editDatabase, ...updates });
+  };
+
+  // Collapsible handlers
+  const handleToggleServers = () => {
+    setServersExpanded(!serversExpanded);
+  };
+
+  const handleToggleResources = () => {
+    setResourcesExpanded(!resourcesExpanded);
+  };
+
+  const handleToggleDatabases = () => {
+    setDatabasesExpanded(!databasesExpanded);
+  };
+
+  const handleToggleServerResources = (serverName) => {
+    setExpandedServers(prev => ({
+      ...prev,
+      [serverName]: !prev[serverName]
+    }));
+  };
+
   const getResourceColor = (uri) => {
     if (uri.startsWith('sqlite://')) return 'primary';
     if (uri.startsWith('memory://')) return 'secondary';
@@ -250,7 +480,7 @@ function Resources() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
-          Resources
+          Resources & Databases
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
@@ -262,98 +492,535 @@ function Resources() {
             Add Server
           </Button>
           <Button
-            variant="contained"
+            variant="outlined"
             startIcon={<AddIcon />}
             onClick={() => setAddResourceDialogOpen(true)}
             size="small"
           >
             Add Resource
           </Button>
+          <Button
+            variant="outlined"
+            startIcon={<DatabaseIcon />}
+            onClick={() => setAddDatabaseDialogOpen(true)}
+            size="small"
+          >
+            Add Database
+          </Button>
         </Box>
       </Box>
       
-      {/* Resources Grid */}
-      <Grid container spacing={3}>
-        {resources.map((resource) => (
-          <Grid item xs={12} sm={6} md={4} key={resource.name}>
-            <Card 
-              sx={{ 
-                height: '100%', 
-                cursor: 'pointer',
-                transition: 'transform 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                },
-              }}
-              onClick={() => handleResourceClick(resource)}
-            >
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Box sx={{ mr: 2, color: `${getResourceColor(resource.uri)}.main` }}>
-                    {getResourceIcon(resource.uri)}
-                  </Box>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      {resource.name}
-                    </Typography>
-                    <Chip
-                      label={getResourceType(resource.uri)}
-                      color={getResourceColor(resource.uri)}
-                      size="small"
-                    />
-                  </Box>
-                </Box>
-                
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {resource.uri}
-                </Typography>
-                
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Chip
-                    label={resource.enabled ? 'Enabled' : 'Disabled'}
-                    color={resource.enabled ? 'success' : 'default'}
-                    size="small"
-                  />
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    <Tooltip title="Edit Resource">
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditResource(resource);
-                        }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete Resource">
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteResource(resource);
-                        }}
-                        color="error"
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Box>
-                
-                <Button
-                  variant="outlined"
-                  startIcon={<SearchIcon />}
-                  fullWidth
-                  sx={{ borderRadius: 2 }}
+      {/* Servers Section */}
+      <Box sx={{ mb: 4 }}>
+        <Card sx={{ mb: 2 }}>
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              p: 2,
+              cursor: 'pointer',
+              '&:hover': {
+                bgcolor: 'action.hover'
+              }
+            }}
+            onClick={handleToggleServers}
+          >
+            <Box sx={{ 
+              width: 4, 
+              height: 24, 
+              bgcolor: 'primary.main', 
+              borderRadius: 2, 
+              mr: 2 
+            }} />
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                MCP Servers
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                External MCP servers that provide tools and resources to your applications
+              </Typography>
+            </Box>
+            <IconButton>
+              {serversExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Box>
+        </Card>
+        
+        <Collapse in={serversExpanded}>
+        {serversData?.servers && serversData.servers.length > 0 ? (
+          <Grid container spacing={3}>
+            {serversData.servers.map((server) => (
+              <Grid item xs={12} sm={6} md={4} key={server.name}>
+                <Card 
+                  sx={{ 
+                    height: '100%',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                    },
+                  }}
                 >
-                  Explore
-                </Button>
-              </CardContent>
-            </Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <Box sx={{ mr: 2, color: 'primary.main' }}>
+                        <StorageIcon />
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {server.name}
+                        </Typography>
+                        <Chip
+                          label={server.enabled ? 'Enabled' : 'Disabled'}
+                          color={server.enabled ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                    
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      {server.uri}
+                    </Typography>
+                    
+                    {server.description && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        {server.description}
+                      </Typography>
+                    )}
+                    
+                    <Button
+                      variant="outlined"
+                      startIcon={<SettingsIcon />}
+                      fullWidth
+                      sx={{ borderRadius: 2 }}
+                    >
+                      Manage Server
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      </Grid>
+        ) : (
+          <Box sx={{ 
+            p: 4, 
+            textAlign: 'center', 
+            border: '2px dashed', 
+            borderColor: 'grey.300', 
+            borderRadius: 2,
+            bgcolor: 'grey.50'
+          }}>
+            <StorageIcon sx={{ fontSize: 48, color: 'grey.400', mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+              No MCP Servers Found
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Add your first MCP server to get started
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setAddServerDialogOpen(true)}
+            >
+              Add Server
+            </Button>
+          </Box>
+        )}
+        </Collapse>
+      </Box>
+
+      {/* Resources Section */}
+      <Box sx={{ mb: 4 }}>
+        <Card sx={{ mb: 2 }}>
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              p: 2,
+              cursor: 'pointer',
+              '&:hover': {
+                bgcolor: 'action.hover'
+              }
+            }}
+            onClick={handleToggleResources}
+          >
+            <Box sx={{ 
+              width: 4, 
+              height: 24, 
+              bgcolor: 'secondary.main', 
+              borderRadius: 2, 
+              mr: 2 
+            }} />
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                MCP Resources
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Data sources and resources exposed through MCP servers for tool access
+              </Typography>
+            </Box>
+            <IconButton>
+              {resourcesExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Box>
+        </Card>
+        
+        <Collapse in={resourcesExpanded}>
+        {/* Breadcrumb-style Resources */}
+        {serversData?.servers && serversData.servers.length > 0 ? (
+          <Box>
+            {serversData.servers.map((server) => {
+              const serverResources = resources.filter(resource => resource.server === server.name);
+              const isServerExpanded = expandedServers[server.name] || false;
+              
+              return (
+                <Box key={server.name} sx={{ mb: 3 }}>
+                  {/* Server Header - Collapsible */}
+                  <Card sx={{ mb: 2 }}>
+                    <Box 
+                      sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        p: 2,
+                        cursor: 'pointer',
+                        bgcolor: 'primary.50',
+                        '&:hover': {
+                          bgcolor: 'primary.100'
+                        }
+                      }}
+                      onClick={() => handleToggleServerResources(server.name)}
+                    >
+                      <StorageIcon sx={{ mr: 2, color: 'primary.main' }} />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                          {server.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {server.uri}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                          label={server.enabled ? 'Enabled' : 'Disabled'}
+                          color={server.enabled ? 'success' : 'default'}
+                          size="small"
+                        />
+                        <IconButton size="small">
+                          {isServerExpanded ? <ExpandLessIcon /> : <ChevronRightIcon />}
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  </Card>
+                  
+                  {/* Resources under this server - Collapsible */}
+                  <Collapse in={isServerExpanded}>
+                    {serverResources.length > 0 ? (
+                      <Grid container spacing={2} sx={{ ml: 2 }}>
+                        {serverResources.map((resource) => (
+                        <Grid item xs={12} sm={6} md={4} key={resource.name}>
+                          <Card 
+                            sx={{ 
+                              height: '100%', 
+                              cursor: 'pointer',
+                              transition: 'transform 0.2s',
+                              border: '1px solid',
+                              borderColor: 'grey.200',
+                              '&:hover': {
+                                transform: 'translateY(-2px)',
+                                boxShadow: 2,
+                              },
+                            }}
+                            onClick={() => handleResourceClick(resource)}
+                          >
+                            <CardContent>
+                              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                <Box sx={{ mr: 2, color: `${getResourceColor(resource.uri)}.main` }}>
+                                  {getResourceIcon(resource.uri)}
+                                </Box>
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                    {resource.name}
+                                  </Typography>
+                                  <Chip
+                                    label={getResourceType(resource.uri)}
+                                    color={getResourceColor(resource.uri)}
+                                    size="small"
+                                  />
+                                </Box>
+                              </Box>
+                              
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                {resource.uri}
+                              </Typography>
+                              
+                              {resource.description && (
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                  {resource.description}
+                                </Typography>
+                              )}
+                              
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                  <Tooltip title="Edit Resource">
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditResource(resource);
+                                      }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete Resource">
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteResource(resource);
+                                      }}
+                                      color="error"
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Box>
+                              </Box>
+                              
+                              <Button
+                                variant="outlined"
+                                startIcon={<SearchIcon />}
+                                fullWidth
+                                sx={{ borderRadius: 2 }}
+                              >
+                                Explore
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ))}
+                      </Grid>
+                    ) : (
+                    <Box sx={{ 
+                      p: 3, 
+                      textAlign: 'center', 
+                      border: '2px dashed', 
+                      borderColor: 'grey.300', 
+                      borderRadius: 2,
+                      bgcolor: 'grey.50',
+                      ml: 2
+                    }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        No resources found for this server
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        startIcon={<AddIcon />}
+                        onClick={() => setAddResourceDialogOpen(true)}
+                        size="small"
+                      >
+                        Add Resource
+                      </Button>
+                      </Box>
+                    )}
+                  </Collapse>
+                </Box>
+              );
+            })}
+          </Box>
+        ) : (
+          <Box sx={{ 
+            p: 4, 
+            textAlign: 'center', 
+            border: '2px dashed', 
+            borderColor: 'grey.300', 
+            borderRadius: 2,
+            bgcolor: 'grey.50'
+          }}>
+            <StorageIcon sx={{ fontSize: 48, color: 'grey.400', mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+              No Resources Found
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Add a server first, then add resources to it
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => setAddServerDialogOpen(true)}
+              >
+                Add Server
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={() => setAddResourceDialogOpen(true)}
+              >
+                Add Resource
+              </Button>
+            </Box>
+          </Box>
+        )}
+        </Collapse>
+      </Box>
+
+      {/* Databases Section */}
+      <Box sx={{ mb: 4 }}>
+        <Card sx={{ mb: 2 }}>
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              p: 2,
+              cursor: 'pointer',
+              '&:hover': {
+                bgcolor: 'action.hover'
+              }
+            }}
+            onClick={handleToggleDatabases}
+          >
+            <Box sx={{ 
+              width: 4, 
+              height: 24, 
+              bgcolor: 'success.main', 
+              borderRadius: 2, 
+              mr: 2 
+            }} />
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                Direct Database Connections
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Direct connections to databases for querying and data management
+              </Typography>
+            </Box>
+            <IconButton>
+              {databasesExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Box>
+        </Card>
+        
+        <Collapse in={databasesExpanded}>
+        {databasesData && databasesData.length > 0 ? (
+          <Grid container spacing={3}>
+            {databasesData.map((database) => (
+              <Grid item xs={12} sm={6} md={4} key={database.name}>
+                <Card 
+                  sx={{ 
+                    height: '100%', 
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                    },
+                  }}
+                  onClick={() => {
+                    setSelectedResource({
+                      name: database.name,
+                      uri: `${database.type}://${database.host}:${database.port}/${database.database}`
+                    });
+                    setQueryDialogOpen(true);
+                  }}
+                >
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <Box sx={{ mr: 2, color: `${getDatabaseColor(database.type)}.main` }}>
+                        {getDatabaseIcon(database.type)}
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                          {database.name}
+                        </Typography>
+                        <Chip
+                          label={database.type.toUpperCase()}
+                          color={getDatabaseColor(database.type)}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                    
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      {database.host}:{database.port}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      {database.database}
+                    </Typography>
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Chip
+                        label={database.is_active ? 'Active' : 'Inactive'}
+                        color={database.is_active ? 'success' : 'default'}
+                        size="small"
+                        icon={database.is_active ? <CheckCircleIcon /> : <ErrorIcon />}
+                      />
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <Tooltip title="Edit Database">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditDatabase(database);
+                            }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Database">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDatabase(database);
+                            }}
+                            color="error"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </Box>
+                    
+                    <Button
+                      variant="outlined"
+                      startIcon={<SearchIcon />}
+                      fullWidth
+                      sx={{ borderRadius: 2 }}
+                    >
+                      Query Database
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        ) : (
+          <Box sx={{ 
+            p: 4, 
+            textAlign: 'center', 
+            border: '2px dashed', 
+            borderColor: 'grey.300', 
+            borderRadius: 2,
+            bgcolor: 'grey.50'
+          }}>
+            <DatabaseIcon sx={{ fontSize: 48, color: 'grey.400', mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+              No Databases Found
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Add your first database connection
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<DatabaseIcon />}
+              onClick={() => setAddDatabaseDialogOpen(true)}
+            >
+              Add Database
+            </Button>
+          </Box>
+        )}
+        </Collapse>
+      </Box>
 
       {/* Database Query Dialog */}
       <Dialog 
@@ -667,6 +1334,263 @@ function Resources() {
             disabled={deleteResourceMutation.isLoading}
           >
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Database Dialog */}
+      <Dialog open={addDatabaseDialogOpen} onClose={() => setAddDatabaseDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Add New Database</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Database Name"
+                value={newDatabase.name}
+                onChange={(e) => setNewDatabase({ ...newDatabase, name: e.target.value })}
+                placeholder="e.g., production_db, analytics_db"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Database Type</InputLabel>
+                <Select
+                  value={newDatabase.type}
+                  onChange={(e) => handleTypeChange(e.target.value)}
+                  label="Database Type"
+                >
+                  <MenuItem value="sqlite">SQLite</MenuItem>
+                  <MenuItem value="postgresql">PostgreSQL</MenuItem>
+                  <MenuItem value="mysql">MySQL</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Host"
+                value={newDatabase.host}
+                onChange={(e) => setNewDatabase({ ...newDatabase, host: e.target.value })}
+                disabled={newDatabase.type === 'sqlite'}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Port"
+                type="number"
+                value={newDatabase.port}
+                onChange={(e) => setNewDatabase({ ...newDatabase, port: parseInt(e.target.value) || 0 })}
+                disabled={newDatabase.type === 'sqlite'}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Database Name/Path"
+                value={newDatabase.database}
+                onChange={(e) => setNewDatabase({ ...newDatabase, database: e.target.value })}
+                placeholder={newDatabase.type === 'sqlite' ? './database.db' : 'database_name'}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Username"
+                value={newDatabase.username}
+                onChange={(e) => setNewDatabase({ ...newDatabase, username: e.target.value })}
+                disabled={newDatabase.type === 'sqlite'}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Password"
+                type="password"
+                value={newDatabase.password}
+                onChange={(e) => setNewDatabase({ ...newDatabase, password: e.target.value })}
+                disabled={newDatabase.type === 'sqlite'}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Max Connections"
+                type="number"
+                value={newDatabase.max_connections}
+                onChange={(e) => setNewDatabase({ ...newDatabase, max_connections: parseInt(e.target.value) || 10 })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Timeout (seconds)"
+                type="number"
+                value={newDatabase.timeout}
+                onChange={(e) => setNewDatabase({ ...newDatabase, timeout: parseInt(e.target.value) || 30 })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={newDatabase.is_active}
+                    onChange={(e) => setNewDatabase({ ...newDatabase, is_active: e.target.checked })}
+                  />
+                }
+                label="Active"
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddDatabaseDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleAddDatabase} 
+            variant="contained"
+            disabled={!newDatabase.name || !newDatabase.database || createDatabaseMutation.isPending}
+          >
+            {createDatabaseMutation.isPending ? 'Adding...' : 'Add Database'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Database Dialog */}
+      <Dialog open={editDatabaseDialogOpen} onClose={() => setEditDatabaseDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Edit Database</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Database Name"
+                value={editDatabase.name}
+                disabled
+                sx={{ opacity: 0.7 }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Database Type</InputLabel>
+                <Select
+                  value={editDatabase.type}
+                  onChange={(e) => handleEditTypeChange(e.target.value)}
+                  label="Database Type"
+                >
+                  <MenuItem value="sqlite">SQLite</MenuItem>
+                  <MenuItem value="postgresql">PostgreSQL</MenuItem>
+                  <MenuItem value="mysql">MySQL</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Host"
+                value={editDatabase.host}
+                onChange={(e) => setEditDatabase({ ...editDatabase, host: e.target.value })}
+                disabled={editDatabase.type === 'sqlite'}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Port"
+                type="number"
+                value={editDatabase.port}
+                onChange={(e) => setEditDatabase({ ...editDatabase, port: parseInt(e.target.value) || 0 })}
+                disabled={editDatabase.type === 'sqlite'}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Database Name/Path"
+                value={editDatabase.database}
+                onChange={(e) => setEditDatabase({ ...editDatabase, database: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Username"
+                value={editDatabase.username}
+                onChange={(e) => setEditDatabase({ ...editDatabase, username: e.target.value })}
+                disabled={editDatabase.type === 'sqlite'}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Password"
+                type="password"
+                value={editDatabase.password}
+                onChange={(e) => setEditDatabase({ ...editDatabase, password: e.target.value })}
+                disabled={editDatabase.type === 'sqlite'}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Max Connections"
+                type="number"
+                value={editDatabase.max_connections}
+                onChange={(e) => setEditDatabase({ ...editDatabase, max_connections: parseInt(e.target.value) || 10 })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Timeout (seconds)"
+                type="number"
+                value={editDatabase.timeout}
+                onChange={(e) => setEditDatabase({ ...editDatabase, timeout: parseInt(e.target.value) || 30 })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={editDatabase.is_active}
+                    onChange={(e) => setEditDatabase({ ...editDatabase, is_active: e.target.checked })}
+                  />
+                }
+                label="Active"
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDatabaseDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleUpdateDatabase} 
+            variant="contained"
+            disabled={!editDatabase.name || !editDatabase.database || updateDatabaseMutation.isPending}
+          >
+            {updateDatabaseMutation.isPending ? 'Updating...' : 'Update Database'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Database Dialog */}
+      <Dialog open={deleteDatabaseDialogOpen} onClose={() => setDeleteDatabaseDialogOpen(false)}>
+        <DialogTitle>Delete Database</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete the database "{databaseToDelete?.name}"? 
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDatabaseDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleConfirmDeleteDatabase} 
+            variant="contained" 
+            color="error"
+            disabled={deleteDatabaseMutation.isPending}
+          >
+            {deleteDatabaseMutation.isPending ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

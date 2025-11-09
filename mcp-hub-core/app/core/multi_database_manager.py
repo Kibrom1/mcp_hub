@@ -5,7 +5,7 @@ Supports multiple database connections and routing
 
 import asyncio
 import logging
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
@@ -200,8 +200,15 @@ class MultiDatabaseManager:
             async with self.get_connection(database_name) as conn:
                 if self.configs[database_name].type == DatabaseType.POSTGRESQL:
                     # PostgreSQL async execution
-                    if params:
-                        rows = await conn.fetch(query, *params.values())
+                    if params is not None:
+                        if isinstance(params, dict):
+                            execution_params = list(params.values())
+                        elif isinstance(params, (list, tuple)):
+                            execution_params = list(params)
+                        else:
+                            execution_params = [params]
+
+                        rows = await conn.fetch(query, *execution_params)
                     else:
                         rows = await conn.fetch(query)
                     
@@ -210,10 +217,19 @@ class MultiDatabaseManager:
                     
                 elif self.configs[database_name].type == DatabaseType.SQLITE:
                     # SQLite execution
-                    cursor = conn.execute(query, params or {})
+                    sqlite_params = self._prepare_sqlite_params(query, params)
+
+                    if sqlite_params is None:
+                        cursor = conn.execute(query)
+                    else:
+                        cursor = conn.execute(query, sqlite_params)
+
                     rows = cursor.fetchall()
                     data = [dict(row) for row in rows]
                     columns = [description[0] for description in cursor.description] if cursor.description else []
+
+                    if conn.in_transaction:
+                        conn.commit()
                 
                 execution_time = (datetime.now() - start_time).total_seconds()
                 
@@ -356,32 +372,32 @@ class MultiDatabaseManager:
                     # PostgreSQL search
                     search_query = """
                     SELECT table_name, column_name, data_type
-                    FROM information_schema.columns 
-                    WHERE table_name ILIKE %s 
-                    AND column_name ILIKE %s
+                    FROM information_schema.columns
+                    WHERE table_name ILIKE $1
+                    AND column_name ILIKE $2
                     ORDER BY table_name, column_name;
                     """
-                    
+
                     result = await self.execute_query(
-                        db_name, 
-                        search_query, 
-                        {'table_pattern': table_pattern, 'search_term': f'%{search_term}%'}
+                        db_name,
+                        search_query,
+                        [table_pattern, f'%{search_term}%']
                     )
                     
                 elif config.type == DatabaseType.SQLITE:
                     # SQLite search
                     search_query = """
                     SELECT name as table_name, sql
-                    FROM sqlite_master 
-                    WHERE type='table' 
-                    AND name LIKE ?
-                    AND sql LIKE ?
+                    FROM sqlite_master
+                    WHERE type='table'
+                    AND name LIKE :table_pattern
+                    AND sql LIKE :search_term
                     ORDER BY name;
                     """
-                    
+
                     result = await self.execute_query(
-                        db_name, 
-                        search_query, 
+                        db_name,
+                        search_query,
                         {'table_pattern': table_pattern, 'search_term': f'%{search_term}%'}
                     )
                 
@@ -392,7 +408,22 @@ class MultiDatabaseManager:
                 results[db_name] = []
         
         return results
-    
+
+    def _prepare_sqlite_params(self, query: str, params: Optional[Any]) -> Optional[Any]:
+        """Normalize SQLite execute() parameters."""
+        if params is None:
+            return None
+
+        if isinstance(params, dict):
+            if any(marker in query for marker in (":", "@", "$")):
+                return params
+            return tuple(params.values())
+
+        if isinstance(params, (list, tuple)):
+            return tuple(params)
+
+        return (params,)
+
     async def close_all_connections(self):
         """Close all database connections"""
         for db_name, pool in self.connection_pools.items():

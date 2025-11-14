@@ -131,7 +131,7 @@ npm start
 - **README**: `mcp-hub-ui/README.md`
 
 ### **Utility Modules**
-- **CRUD Generator**: moved to the new `utility` repository at `../utility/spring-boot-crud-generator`
+- **CRUD Generator**: moved to the new `utility` repository at `utility/spring-boot-crud-generator`
 
 ---
 

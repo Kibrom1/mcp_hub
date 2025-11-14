@@ -35,6 +35,31 @@ generator = SpringBootCrudGenerator(
 generator.generate(Path("./customer-crud"), overwrite=True)
 ```
 
+### Generating from a live database connection
+
+You can introspect an existing SQLite database table and generate the CRUD
+project without manually crafting the column definitions:
+
+```python
+import sqlite3
+from pathlib import Path
+from spring_boot_crud_generator import SpringBootCrudGenerator
+
+connection = sqlite3.connect("./example.db")
+
+generator = SpringBootCrudGenerator.from_connection(
+    base_package="com.example.demo",
+    connection=connection,
+    table_name="customer",
+)
+
+generator.generate(Path("./customer-crud"), overwrite=True)
+```
+
+The helper automatically converts the SQLite schema into the internal
+`TableDefinition` model. Only SQLite connections are currently supported for
+introspection.
+
 ### Using the generator from another service
 
 If you want to call the generator from an existing service (for example a

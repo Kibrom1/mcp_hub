@@ -6,8 +6,9 @@ This module exposes a high-level :class:`SpringBootCrudGenerator` that can take 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 JAVA_TYPE_DEFAULTS: Dict[str, Tuple[str, Optional[str]]] = {
@@ -89,6 +90,34 @@ class SpringBootCrudGenerator:
         self.base_package = base_package
         self.table = table
         self.project_name = project_name or f"{self._pascal_case(table.name)}Crud"
+
+    @classmethod
+    def from_connection(
+        cls,
+        base_package: str,
+        connection: Any,
+        table_name: str,
+        project_name: Optional[str] = None,
+    ) -> "SpringBootCrudGenerator":
+        """Construct a generator by introspecting a database table.
+
+        Args:
+            base_package: Java package for the generated project.
+            connection: A DB-API compatible connection object.
+            table_name: Name of the table to introspect.
+            project_name: Optional custom project name.
+
+        Returns:
+            A :class:`SpringBootCrudGenerator` instance configured with a
+            :class:`TableDefinition` derived from the live database schema.
+        """
+
+        table_definition = table_definition_from_connection(connection, table_name)
+        return cls(
+            base_package=base_package,
+            table=table_definition,
+            project_name=project_name,
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -409,8 +438,74 @@ spring.h2.console.enabled=true
         return java_types
 
 
+def table_definition_from_connection(connection: Any, table_name: str) -> TableDefinition:
+    """Build a :class:`TableDefinition` by introspecting a live database table.
+
+    The current implementation supports :mod:`sqlite3` connections. A
+    :class:`TypeError` is raised if the provided connection type is not
+    supported.
+    """
+
+    module_name = type(connection).__module__
+    if module_name.startswith("sqlite3"):
+        return _table_definition_from_sqlite(connection, table_name)
+
+    raise TypeError(
+        "Unsupported connection type. Only sqlite3 connections are currently supported."
+    )
+
+
+def _table_definition_from_sqlite(connection: Any, table_name: str) -> TableDefinition:
+    cursor = connection.execute(f"PRAGMA table_info({table_name})")
+    rows = cursor.fetchall()
+    if not rows:
+        raise ValueError(f"Table '{table_name}' does not exist or has no columns")
+
+    unique_columns: set[str] = set()
+    index_cursor = connection.execute(f"PRAGMA index_list({table_name})")
+    for _, index_name, index_unique, *_ in index_cursor.fetchall():
+        if bool(index_unique):
+            info_cursor = connection.execute(f"PRAGMA index_info({index_name})")
+            for _, _, column_name in info_cursor.fetchall():
+                unique_columns.add(column_name)
+
+    columns: List[ColumnDefinition] = []
+    for _, name, col_type, notnull, _, pk in rows:
+        base_type, length = _parse_sqlite_type(col_type)
+        is_nullable = not bool(notnull)
+        if pk:
+            is_nullable = False
+        columns.append(
+            ColumnDefinition(
+                name=name,
+                data_type=base_type,
+                primary_key=bool(pk),
+                nullable=is_nullable,
+                unique=name in unique_columns,
+                length=length,
+            )
+        )
+
+    return TableDefinition(name=table_name, columns=columns)
+
+
+def _parse_sqlite_type(col_type: Optional[str]) -> Tuple[str, Optional[int]]:
+    if not col_type:
+        return "text", None
+
+    match = re.match(r"^(?P<type>[a-zA-Z]+)(?:\((?P<length>\d+)\))?", col_type.strip())
+    if not match:
+        return col_type.lower(), None
+
+    base_type = match.group("type").lower()
+    length_str = match.group("length")
+    length = int(length_str) if length_str else None
+    return base_type, length
+
+
 __all__ = [
     "ColumnDefinition",
     "SpringBootCrudGenerator",
     "TableDefinition",
+    "table_definition_from_connection",
 ]

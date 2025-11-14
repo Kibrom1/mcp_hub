@@ -8,10 +8,13 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+import sqlite3
+
 from spring_boot_crud_generator import (  # noqa: E402
     ColumnDefinition,
     SpringBootCrudGenerator,
     TableDefinition,
+    table_definition_from_connection,
 )
 
 
@@ -92,3 +95,69 @@ def test_generator_validation(table: TableDefinition, expected_error: str) -> No
     with pytest.raises(ValueError) as exc:
         SpringBootCrudGenerator(base_package="com.example.demo", table=table)
     assert expected_error in str(exc.value)
+
+
+def test_table_definition_from_sqlite_connection() -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.execute(
+        """
+        CREATE TABLE user_account (
+            id INTEGER PRIMARY KEY,
+            email VARCHAR(120) NOT NULL UNIQUE,
+            created_at TIMESTAMP NOT NULL
+        )
+        """
+    )
+
+    table_definition = table_definition_from_connection(connection, "user_account")
+
+    assert table_definition.name == "user_account"
+    assert {column.name for column in table_definition.columns} == {
+        "id",
+        "email",
+        "created_at",
+    }
+
+    id_column = next(column for column in table_definition.columns if column.name == "id")
+    email_column = next(column for column in table_definition.columns if column.name == "email")
+
+    assert id_column.primary_key is True
+    assert id_column.nullable is False
+    assert id_column.data_type == "integer"
+
+    assert email_column.unique is True
+    assert email_column.length == 120
+
+
+def test_generator_from_connection(tmp_path: Path) -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.execute(
+        """
+        CREATE TABLE product (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL
+        )
+        """
+    )
+
+    generator = SpringBootCrudGenerator.from_connection(
+        base_package="com.example.demo",
+        connection=connection,
+        table_name="product",
+    )
+
+    generator.generate(tmp_path)
+
+    entity_file = (
+        tmp_path
+        / "src"
+        / "main"
+        / "java"
+        / "com"
+        / "example"
+        / "demo"
+        / "entity"
+        / "Product.java"
+    )
+
+    assert entity_file.exists()

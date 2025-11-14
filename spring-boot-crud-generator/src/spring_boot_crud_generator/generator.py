@@ -202,112 +202,120 @@ class SpringBootCrudGenerator:
 """
 
     def _generate_application_class(self) -> str:
+        class_name = f"{self.project_name}Application"
         return f"""package {self.base_package};
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class {self.project_name}Application {{
+public class {class_name} {{
 
     public static void main(String[] args) {{
-        SpringApplication.run({self.project_name}Application.class, args);
+        SpringApplication.run({class_name}.class, args);
     }}
 }}
 """
 
     def _generate_entity_class(self) -> str:
-        imports = {
-            "jakarta.persistence.*",
-        }
+        lines = [
+            f"package {self.base_package}.entity;\n",
+            "import jakarta.persistence.*;\n",
+        ]
 
-        field_declarations = []
-        getter_setters = []
+        imports = self._collect_entity_imports()
+        if imports:
+            lines.extend(sorted({f"import {imp};\n" for imp in imports if imp}))
+
+        lines.append("\n@Entity\n")
+        lines.append(f"@Table(name = \"{self.table.name}\")\n")
+        lines.append(f"public class {self._entity_class_name()} {{\n\n")
+
+        for column in self.table.columns:
+            lines.extend(self._generate_column_declaration(column))
+
+        lines.append("}\n")
+        return "".join(lines)
+
+    def _collect_entity_imports(self) -> Iterable[str | None]:
         for column in self.table.columns:
             java_type, java_import = column.resolved_java_type()
             if java_import:
-                imports.add(java_import)
+                yield java_import
 
-            annotations = list(column.annotations)
-            if column.primary_key:
-                annotations.append("@Id")
-                if java_type in {"Long", "Integer", "Short"}:
-                    annotations.append("@GeneratedValue(strategy = GenerationType.IDENTITY)")
-                    imports.add("jakarta.persistence.GenerationType")
-            column_annotations = self._column_annotation(column)
-            if column_annotations:
-                annotations.append(column_annotations)
+    def _generate_column_declaration(self, column: ColumnDefinition) -> List[str]:
+        annotations = list(column.annotations)
+        if column.primary_key:
+            annotations.insert(0, "@Id")
+            annotations.insert(1, "@GeneratedValue(strategy = GenerationType.IDENTITY)")
+        if column.unique:
+            annotations.append("@Column(unique = true)")
+        elif column.nullable:
+            annotations.append("@Column(nullable = true)")
 
-            annotation_block = "\n    ".join(annotations)
-            if annotation_block:
-                annotation_block = f"    {annotation_block}\n"
+        if column.length is not None:
+            annotations.append(f"@Column(length = {column.length})")
 
-            field_declarations.append(
-                f"{annotation_block}    private {java_type} {self._camel_case(column.name)};"
-            )
+        java_type, _ = column.resolved_java_type()
+        field_declaration = f"    private {java_type} {column.name};\n\n"
 
-            getter_setters.extend(
-                self._generate_getter_setter(java_type, self._camel_case(column.name))
-            )
-
-        imports_text = "\n".join(f"import {imp};" for imp in sorted(imports))
-        class_body = "\n\n".join(field_declarations + getter_setters)
-
-        return f"""package {self.base_package}.entity;
-
-{imports_text}
-
-@Entity
-@Table(name = \"{self.table.name}\")
-public class {self._entity_class_name()} {{
-
-{class_body}
-}}
-"""
+        return [f"    {annotation}\n" for annotation in annotations] + [field_declaration]
 
     def _generate_repository_interface(self) -> str:
-        pk_type, _ = self.table.primary_key_columns()[0].resolved_java_type()
+        entity_class = self._entity_class_name()
+        pk_types = self._primary_key_java_types()
+        if len(pk_types) > 1:
+            raise NotImplementedError("Composite primary keys are not supported yet")
+        pk_type = pk_types[0]
+
         return f"""package {self.base_package}.repository;
 
-import {self.base_package}.entity.{self._entity_class_name()};
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import {self.base_package}.entity.{entity_class};
 
-@Repository
-public interface {self._entity_class_name()}Repository extends JpaRepository<{self._entity_class_name()}, {pk_type}> {{
+public interface {entity_class}Repository extends JpaRepository<{entity_class}, {pk_type}> {{
 }}
 """
 
     def _generate_service_class(self) -> str:
-        entity_name = self._entity_class_name()
-        pk_type, _ = self.table.primary_key_columns()[0].resolved_java_type()
-        return f"""package {self.base_package}.service;
+        entity_class = self._entity_class_name()
+        pk_types = self._primary_key_java_types()
+        if len(pk_types) > 1:
+            raise NotImplementedError("Composite primary keys are not supported yet")
+        pk_type = pk_types[0]
 
-import {self.base_package}.entity.{entity_name};
-import {self.base_package}.repository.{entity_name}Repository;
-import org.springframework.stereotype.Service;
+        return f"""package {self.base_package}.service;
 
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.stereotype.Service;
+
+import {self.base_package}.entity.{entity_class};
+import {self.base_package}.repository.{entity_class}Repository;
+
 @Service
-public class {entity_name}Service {{
+public class {entity_class}Service {{
 
-    private final {entity_name}Repository repository;
+    private final {entity_class}Repository repository;
 
-    public {entity_name}Service({entity_name}Repository repository) {{
+    public {entity_class}Service({entity_class}Repository repository) {{
         this.repository = repository;
     }}
 
-    public List<{entity_name}> findAll() {{
+    public {entity_class} create({entity_class} entity) {{
+        return repository.save(entity);
+    }}
+
+    public List<{entity_class}> findAll() {{
         return repository.findAll();
     }}
 
-    public Optional<{entity_name}> findById({pk_type} id) {{
+    public Optional<{entity_class}> findById({pk_type} id) {{
         return repository.findById(id);
     }}
 
-    public {entity_name} save({entity_name} entity) {{
+    public {entity_class} update({entity_class} entity) {{
         return repository.save(entity);
     }}
 
@@ -318,71 +326,61 @@ public class {entity_name}Service {{
 """
 
     def _generate_controller_class(self) -> str:
-        entity_name = self._entity_class_name()
-        pk_column = self.table.primary_key_columns()[0]
-        pk_type, _ = pk_column.resolved_java_type()
-        pk_field = self._camel_case(pk_column.name)
-        pk_pascal = pk_field[0].upper() + pk_field[1:]
-        variable_name = self._camel_case(entity_name)
-        lines = [
-            f"package {self.base_package}.controller;",
-            "",
-            f"import {self.base_package}.entity.{entity_name};",
-            f"import {self.base_package}.service.{entity_name}Service;",
-            "import org.springframework.http.ResponseEntity;",
-            "import org.springframework.web.bind.annotation.*;",
-            "",
-            "import java.util.List;",
-            "",
-            "@RestController",
-            f'@RequestMapping("/api/{self._kebab_case(entity_name)}")',
-            f"public class {entity_name}Controller {{",
-            "",
-            f"    private final {entity_name}Service service;",
-            "",
-            f"    public {entity_name}Controller({entity_name}Service service) {{",
-            "        this.service = service;",
-            "    }",
-            "",
-            "    @GetMapping",
-            f"    public List<{entity_name}> getAll() {{",
-            "        return service.findAll();",
-            "    }",
-            "",
-            f'    @GetMapping("/{pk_field}")',
-            f"    public ResponseEntity<{entity_name}> getById(@PathVariable {pk_type} {pk_field}) {{",
-            f"        return service.findById({pk_field})",
-            "            .map(ResponseEntity::ok)",
-            "            .orElseGet(() -> ResponseEntity.notFound().build());",
-            "    }",
-            "",
-            "    @PostMapping",
-            f"    public {entity_name} create(@RequestBody {entity_name} {variable_name}) {{",
-            f"        return service.save({variable_name});",
-            "    }",
-            "",
-            f'    @PutMapping("/{pk_field}")',
-            f"    public ResponseEntity<{entity_name}> update(",
-            f"            @PathVariable {pk_type} {pk_field},",
-            f"            @RequestBody {entity_name} {variable_name}) {{",
-            f"        return service.findById({pk_field})",
-            "            .map(existing -> {",
-            f"                {variable_name}.set{pk_pascal}(existing.get{pk_pascal}());",
-            f"                return ResponseEntity.ok(service.save({variable_name}));",
-            "            })",
-            "            .orElseGet(() -> ResponseEntity.notFound().build());",
-            "    }",
-            "",
-            f'    @DeleteMapping("/{pk_field}")',
-            f"    public ResponseEntity<Void> delete(@PathVariable {pk_type} {pk_field}) {{",
-            f"        service.deleteById({pk_field});",
-            "        return ResponseEntity.noContent().build();",
-            "    }",
-            "}",
-            "",
-            "}",
-        ]
-        return "\n".join(lines) + "\n"
+        entity_class = self._entity_class_name()
+        pk_types = self._primary_key_java_types()
+        if len(pk_types) > 1:
+            raise NotImplementedError("Composite primary keys are not supported yet")
+        pk_type = pk_types[0]
+
+        return f"""package {self.base_package}.controller;
+
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import {self.base_package}.entity.{entity_class};
+import {self.base_package}.service.{entity_class}Service;
+
+@RestController
+@RequestMapping("/api/{self.table.name}")
+public class {entity_class}Controller {{
+
+    private final {entity_class}Service service;
+
+    public {entity_class}Controller({entity_class}Service service) {{
+        this.service = service;
+    }}
+
+    @PostMapping
+    public ResponseEntity<{entity_class}> create(@RequestBody {entity_class} entity) {{
+        return ResponseEntity.ok(service.create(entity));
+    }}
+
+    @GetMapping
+    public ResponseEntity<List<{entity_class}>> findAll() {{
+        return ResponseEntity.ok(service.findAll());
+    }}
+
+    @GetMapping("/{'{'}id{'}'}")
+    public ResponseEntity<{entity_class}> findById(@PathVariable {pk_type} id) {{
+        return service.findById(id)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
+    }}
+
+    @PutMapping
+    public ResponseEntity<{entity_class}> update(@RequestBody {entity_class} entity) {{
+        return ResponseEntity.ok(service.update(entity));
+    }}
+
+    @DeleteMapping("/{'{'}id{'}'}")
+    public ResponseEntity<Void> deleteById(@PathVariable {pk_type} id) {{
+        service.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }}
+}}
+"""
 
     def _generate_application_properties(self) -> str:
         return """spring.datasource.url=jdbc:h2:mem:testdb
@@ -395,76 +393,24 @@ spring.h2.console.enabled=true
 """
 
     # ------------------------------------------------------------------
-    # Helper methods
+    # Helper utilities
     # ------------------------------------------------------------------
     def _entity_class_name(self) -> str:
         return self._pascal_case(self.table.name)
 
-    @staticmethod
-    def _camel_case(value: str) -> str:
-        parts = [part for part in SpringBootCrudGenerator._split_identifier(value) if part]
-        if not parts:
-            return value
-        first, *rest = parts
-        return first.lower() + "".join(word.title() for word in rest)
+    def _pascal_case(self, name: str) -> str:
+        return "".join(part.capitalize() for part in name.replace("_", " ").split())
 
-    @staticmethod
-    def _pascal_case(value: str) -> str:
-        parts = [part for part in SpringBootCrudGenerator._split_identifier(value) if part]
-        return "".join(word.title() for word in parts)
-
-    @staticmethod
-    def _kebab_case(value: str) -> str:
-        parts = [part.lower() for part in SpringBootCrudGenerator._split_identifier(value) if part]
-        return "-".join(parts)
-
-    @staticmethod
-    def _split_identifier(value: str) -> Iterable[str]:
-        import re
-
-        cleaned = value.replace("-", "_")
-        parts: List[str] = []
-        for fragment in cleaned.split("_"):
-            if not fragment:
-                continue
-            matches = re.finditer(
-                r"[A-Z]?[a-z0-9]+|[A-Z]+(?=[A-Z][a-z0-9]|$)",
-                fragment,
-            )
-            for match in matches:
-                parts.append(match.group(0).lower())
-        return parts
-
-    def _column_annotation(self, column: ColumnDefinition) -> Optional[str]:
-        params = [f"name = \"{column.name}\""]
-        if column.length is not None:
-            params.append(f"length = {column.length}")
-        if column.nullable:
-            params.append("nullable = true")
-        else:
-            params.append("nullable = false")
-        if column.unique:
-            params.append("unique = true")
-        params_text = ", ".join(params)
-        return f"@Column({params_text})"
-
-    def _generate_getter_setter(self, java_type: str, field_name: str) -> List[str]:
-        pascal_field = field_name[0].upper() + field_name[1:]
-        getter = (
-            f"    public {java_type} get{pascal_field}() {{\n"
-            f"        return {field_name};\n"
-            "    }"
-        )
-        setter = (
-            f"    public void set{pascal_field}({java_type} {field_name}) {{\n"
-            f"        this.{field_name} = {field_name};\n"
-            "    }"
-        )
-        return [getter, setter]
+    def _primary_key_java_types(self) -> List[str]:
+        java_types = []
+        for column in self.table.primary_key_columns():
+            java_type, _ = column.resolved_java_type()
+            java_types.append(java_type)
+        return java_types
 
 
 __all__ = [
     "ColumnDefinition",
-    "TableDefinition",
     "SpringBootCrudGenerator",
+    "TableDefinition",
 ]

@@ -1,8 +1,14 @@
 from pathlib import Path
+import sys
 
 import pytest
 
-from app.services.spring_boot_crud_generator import (
+ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from spring_boot_crud_generator import (  # noqa: E402
     ColumnDefinition,
     SpringBootCrudGenerator,
     TableDefinition,
@@ -42,12 +48,31 @@ def test_generate_crud_project(tmp_path: Path) -> None:
     assert "@Entity" in entity_contents
     assert "@Table(name = \"user_account\")" in entity_contents
     assert "private Long id;" in entity_contents
-    assert "public Long getId()" in entity_contents
+    assert "private String email;" in entity_contents
 
     assert "@RestController" in controller_contents
-    assert "@RequestMapping(\"/api/user-account\")" in controller_contents
-    assert "getById(@PathVariable Long id)" in controller_contents
-    assert "delete(@PathVariable Long id)" in controller_contents
+    assert "@RequestMapping(\"/api/user_account\")" in controller_contents
+    assert "findById(@PathVariable Long id)" in controller_contents
+    assert "deleteById(@PathVariable Long id)" in controller_contents
+
+
+def test_generate_overwrite(tmp_path: Path) -> None:
+    table = TableDefinition(
+        name="user",
+        columns=[ColumnDefinition(name="id", data_type="bigint", primary_key=True)],
+    )
+    generator = SpringBootCrudGenerator(base_package="com.example.demo", table=table)
+
+    output_file = tmp_path / "pom.xml"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text("existing", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        generator.generate(tmp_path)
+
+    generator.generate(tmp_path, overwrite=True)
+
+    assert "spring-boot-starter-web" in output_file.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
